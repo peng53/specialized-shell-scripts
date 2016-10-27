@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# Functions from 'fq'; a very private script
+# This script will use a file as a queue for springs
+
+d=/mnt/ramdisk
+q=${d}mq
+# location of file queue; preferably in ramdisk for my purposes
+
+case "$1" in
+# using first arg to choose func
+*)
+	#stuff
+;;
+esac
