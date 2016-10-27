@@ -6,9 +6,32 @@
 d=/mnt/ramdisk
 q=${d}mq
 # location of file queue; preferably in ramdisk for my purposes
+nx(){
+	read -r L < $q
+	# stores first line of file
+	sed -i '1d;/^$/d' $q
+	# delete first line while removing whitespace(?)
+	echo $L
+	# output
+}
 
 case "$1" in
 # using first arg to choose func
+# enqueue a string
+add)
+	echo $2 >> $q
+;;
+# dequeues to terminal by printing
+top)
+	nx
+;;
+# clears entries
+fls)
+	> $q
+;;
+#view)
+#	$v &&
+#;;
 *)
 	#stuff
 ;;
