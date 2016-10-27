@@ -3,9 +3,13 @@
 # Functions from 'fq'; a very private script
 # This script will use a file as a queue for springs
 
-d=/mnt/ramdisk
+d=/mnt/ramdisk/
 q=${d}mq
 # location of file queue; preferably in ramdisk for my purposes
+pp(){
+	# renames last downloaded to '0', deleting '0' in process
+	[ -f ${d}1 ] && mv -f ${d}1 ${d}0
+}
 nx(){
 	read -r L < $q
 	# stores first line of file
@@ -14,7 +18,30 @@ nx(){
 	echo $L
 	# output
 }
-
+mx(){
+	# gets top without removing it
+	read -r L < $q
+	echo $L
+}
+view_action(){
+	# viewing action
+	view_cmd ${d}1
+}
+def_action(){
+	#do something with input
+	echo $1
+	pp
+	download_cmd $1 -out ${d}1 &&
+	#watch output while downloading by forking
+	sleep 30
+	view_action
+}
+ic(){
+	# do & increment
+	def_action $1
+	echo $(./inc $1) >> $q
+	# where ./inc takes a spring and increments it by 1
+}
 case "$1" in
 # using first arg to choose func
 # enqueue a string
@@ -23,16 +50,37 @@ add)
 ;;
 # dequeues to terminal by printing
 top)
-	nx
+	mx
 ;;
 # clears entries
 fls)
 	> $q
 ;;
-#view)
-#	$v &&
-#;;
+# shows entire queue
+see)
+	cat $q
+;;
+view)
+	view_action
+;;
+# for strings whose incremented version follows predictablely
+# can be started with queue or string
+inc)
+	if [ -n "$3" ] then
+		ic "$3"
+	else
+		ic nx
+	fi
+go)
+	#stuff
+	#carry out default action w/ 2nd arg used
+	#without using queue
+	def_action "$2"
+;;
 *)
 	#stuff
+	#command with nx
+	#default action with no args used
+	def_action nx
 ;;
 esac
