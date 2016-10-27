@@ -1,4 +1,11 @@
 #!/bin/sh
+#
+# Script to 'pause' a process by stopping it
+# only tested with single processes (e.g palemoon)
+# use caution with multi processed programs like chrome
+#
+# syntax is pause 'process-name' [*]
+# the optional arg undoes stopping
 c=-stop
 [ $# -eq 2 ] && c=-cont
 kill $c $(pgrep $1)

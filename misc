@@ -1,13 +1,23 @@
 #!/bin/sh
+#
+# Lots of crap
+# Mostly tools I do not use frequently
+# letim, pause. & mid stuff may go in here
+# syntax is: misc option [ ... ]
+
 case $1 in
 title)	echo -n "\033]0;$2\007" ;;
+# changes current terminal's title
 off)	sleep 1; xset s activate ;;
+# turns off screen
 clear)	rm ~/.local/share/recently-used.xbel ;;
+# clears recently used files in gtk's file listing
 gvfs)
 	killall gvfs-gphoto2-volume-monitor
 	killall gvfs-mtp-volume-monitor
 	killall gvfs-afc-volume-monitor
 ;;
+# kills gvfs processes for whatever reason
 rs)
 #if any additional parems, rs3, else ors
 	[ "$2" -eq "3" ] && c="http://www.runescape.com/k=3/l=0/jav_config.ws" || 		c="http://oldschool.runescape.com/jav_config.ws"
@@ -16,23 +26,30 @@ rs)
 
 	trickle -u 15 -d 25 /usr/lib/jvm/java-6-openjdk-i386/jre/bin/java -client -XX:+AggressiveOpts -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+TieredCompilation -XX:ReservedCodeCacheSize=256m -XX:+UseAdaptiveGCBoundary -XX:SurvivorRatio=16 -XX:+UseParallelGC -Dhttps.protocols=SSLv3 -Duser.home="~/.config/runescape/share/cache"   -cp  jagexappletviewer.jar -Dsun.java2d.noddraw=true -Dcom.jagex.config=$c -Xss2m -Xmx256m jagexappletviewer  /share/img/RuneScape3 &
 ;;
+# runs runescape original or 3 via java while
+# throttling its connection speed
 rclick)
 	setxkbmap -layout us
 	xkbset m
 	xmodmap -e "keycode 105 = Pointer_Button3"
 ;;
+# allows right ctrl(?) to act as right mouse button
+# used when my mouse was broken
 steam)	trickle -s -u $2 -d $3 steam &	;;
+# runs steam with throttled connection
 webhelp)
 	f="/home/prima/.local/share/Steam/ubuntu12_32/steamwebhelper"
 	[ -x $f ] && chmod 444 $f || chmod 544 $f
 ;;
+# disables steam's bad browser (causes crashing/side effects)
 chkreq)	steam "steam://checksysreqs/"$1 ;;
 port)
 	sudo iptables -A INPUT -p tcp --destination-port 51413 -j ACCEPT
 	sudo iptables -A OUTPUT -p tcp --source-port 51413 -j ACCEPT
 ;;
+# port forwarding..
 *)
 	echo ARG  title	gvfs	rs	steam	chkreq
 	echo NARG off	clear	rclick	webhelp
-;;
+;;w
 esac

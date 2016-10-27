@@ -1,10 +1,19 @@
 #!/bin/sh
+#
+# Productivity increaser
+# constantly reminds user to get on task
+# with annoying beep
+
 #r=0
 #trap "exit $r" 2
 #echo "CTRL+C"
+# ^^ original supposed to track how many total time
+# before quit, but didn't work as expected
 while :
 do
 	beep -f 3600 -d 1000 -r 2
 	sleep 2m
+	# the above numbers can be fitted to annoy all users
+	# equally well
 #	r=$((r+1))
 done
