@@ -1,0 +1,4 @@
+#!/bin/sh
+c=-stop
+[ $# -eq 2 ] && c=-cont
+kill $c $(pgrep $1)

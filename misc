@@ -1,0 +1,38 @@
+#!/bin/sh
+case $1 in
+title)	echo -n "\033]0;$2\007" ;;
+off)	sleep 1; xset s activate ;;
+clear)	rm ~/.local/share/recently-used.xbel ;;
+gvfs)
+	killall gvfs-gphoto2-volume-monitor
+	killall gvfs-mtp-volume-monitor
+	killall gvfs-afc-volume-monitor
+;;
+rs)
+#if any additional parems, rs3, else ors
+	[ "$2" -eq "3" ] && c="http://www.runescape.com/k=3/l=0/jav_config.ws" || 		c="http://oldschool.runescape.com/jav_config.ws"
+	cd /home/prima/.config/runescape/bin
+	LD_LIBRARY_PATH=/opt/runescape/rsu/3rdParty/linux/cairo-nogl/i386/:/opt/runescape/rsu/3rdParty/linux/cairo-nogl/x86_64/:/usr/lib/jvm/java-6-openjdk-i386/jre/bin/../lib/i386/:/usr/lib/jvm/java-6-openjdk-i386/jre/bin/../lib/i386/jli/:$LD_LIBRARY_PATH
+
+	trickle -u 15 -d 25 /usr/lib/jvm/java-6-openjdk-i386/jre/bin/java -client -XX:+AggressiveOpts -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+TieredCompilation -XX:ReservedCodeCacheSize=256m -XX:+UseAdaptiveGCBoundary -XX:SurvivorRatio=16 -XX:+UseParallelGC -Dhttps.protocols=SSLv3 -Duser.home="~/.config/runescape/share/cache"   -cp  jagexappletviewer.jar -Dsun.java2d.noddraw=true -Dcom.jagex.config=$c -Xss2m -Xmx256m jagexappletviewer  /share/img/RuneScape3 &
+;;
+rclick)
+	setxkbmap -layout us
+	xkbset m
+	xmodmap -e "keycode 105 = Pointer_Button3"
+;;
+steam)	trickle -s -u $2 -d $3 steam &	;;
+webhelp)
+	f="/home/prima/.local/share/Steam/ubuntu12_32/steamwebhelper"
+	[ -x $f ] && chmod 444 $f || chmod 544 $f
+;;
+chkreq)	steam "steam://checksysreqs/"$1 ;;
+port)
+	sudo iptables -A INPUT -p tcp --destination-port 51413 -j ACCEPT
+	sudo iptables -A OUTPUT -p tcp --source-port 51413 -j ACCEPT
+;;
+*)
+	echo ARG  title	gvfs	rs	steam	chkreq
+	echo NARG off	clear	rclick	webhelp
+;;
+esac

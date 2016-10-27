@@ -1,0 +1,10 @@
+#!/bin/sh
+#r=0
+#trap "exit $r" 2
+#echo "CTRL+C"
+while :
+do
+	beep -f 3600 -d 1000 -r 2
+	sleep 2m
+#	r=$((r+1))
+done
