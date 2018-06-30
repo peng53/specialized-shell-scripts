@@ -1,0 +1,86 @@
+#!/bin/sh
+d=/mnt/ramdisk/
+q=${d}mq
+yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
+speed=40k
+quality=36
+
+alias pp='[ -f ${d}1 ] && mv -f ${d}1 ${d}0'
+alias yt_dl=~/pet/sh/youtube-dl
+alias err_beep='beep -f 100 -d 500 -r 2'
+alias play_vid='mpv --pause --keep-open --really-quiet ${d}1'
+nx(){
+	read -r L < $q
+	echo $L
+	[ -z $1 ] && sed -i '1d;/^$/d' $q
+}
+try_play(){
+	if [ -s ${d}1 ]
+	then
+		play_vid &
+	else
+		err_beep
+	fi
+}
+dl_vid(){
+	# where $1 is url
+	# $2 is resume/not
+	[ -z $1 ] && return 1
+	[ -s ${d}lfile ] && return 1
+	touch ${d}lfile
+	[ -z $2 ] && pp
+	[ -s ${d}speed ] && read -r speed < ${d}speed
+	[ -s ${d}quality ] && read -r quality < ${d}quality
+	yt_dl $yt_def_args -r $speed -f $quality $1 -o ${d}1 || err_beep &
+	sleep 30
+	rm ${d}lfile
+	return 0
+}
+case "$1" in
+	top)
+		nx KEEP
+	;;
+	add)
+		echo $2 >> $q
+	;;
+	fls)
+		> $q
+	;;
+	see)
+		cat $q
+	;;
+	view)
+		play_vid &
+	;;
+	halt)
+		[ -n $(pgrep youtube-dl) ] && killall youtube-dl
+	;;
+	resm)
+		dl_vid $([ -z $2 ] && nx || echo $2) RESM && try_play
+	;;
+	xc)
+		dl_vid $(xclip -o) && try_play
+	;;
+	go)
+		dl_vid $2 && try_play
+	;;
+	q)
+		echo $2 > ${d}quality
+	;;
+	s)
+		echo $2 > ${d}speed
+	;;
+	plunge)
+		[ -f ${d}lfile ] && rm ${d}lfile
+	;;
+	*)
+		# If lfile exists: play. otherwise: dl_vid
+		if [ -f ${d}lfile ]
+		then
+			play_vid
+			rm ${d}lfile
+		else
+			dl_vid $(nx) && try_play
+		fi
+	;;
+esac
