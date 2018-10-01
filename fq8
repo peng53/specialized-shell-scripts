@@ -4,9 +4,10 @@ q=${d}mq
 yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 
 alias pp='[ -f ${d}1 ] && mv -f ${d}1 ${d}0'
-alias yt_dl=~/pet/sh/youtube-dl
+alias yt_dl=youtube-dl
 alias err_beep='beep -f 100 -d 500 -r 2'
-alias play_vid='mpv --pause --keep-open --really-quiet ${d}1'
+alias play_vid='DISPLAY=:0 mpv --pause --keep-open --really-quiet ${d}1'
+alias sr='~/.local/bin/streamlink -p mpv --player-no-close --player-passthrough hls'
 nx(){
 	read -r L < $q
 	echo $L
@@ -69,6 +70,9 @@ case "$1" in
 	sets)
 		echo dash- use speed=X then export
 		echo fish- use set -x speed
+	;;
+	cr) # no 2nd arg, use q.
+		sr $([ -z $2 ] && nx || echo $2) 240p
 	;;
 	*)
 		# If lfile exists: play. otherwise: dl_vid
