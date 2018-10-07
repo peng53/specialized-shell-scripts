@@ -28,13 +28,22 @@ dl_vid(){
 	[ -s ${d}lfile ] && return 1
 	touch ${d}lfile
 	[ -z $2 ] && pp
-	[ -z $speed ] && speed=40k
-	[ -z $quality ] && quality=36
-	echo Downloading at q = $quality and s = $speed
-	yt_dl $yt_def_args -r $speed -f $quality $1 -o ${d}1 || err_beep &
+	echo Downloading at q = ${quality-36} and s = ${speed-40k}
+	yt_dl $yt_def_args -r ${speed-40k} -f ${quality-36} $1 -o ${d}1 || err_beep &
 	sleep 30
 	rm ${d}lfile
 	return 0
+}
+dl_vid_wget(){
+	# same options as dl_vid()
+	[ -z $1 ] && return 1
+	[ -s ${d}lfile ] && return 1
+	touch ${d}lfile
+	[ -z $2 ] && pp
+	yt_dl $yt_def_args -f $quality $1 --external-downloader wget --external-downloader-args "-O ${d}1 -nc -c --limit-rate=${speed-40k}"
+	sleep 30
+	rm ${d}lfile
+	return 0 
 }
 case "$1" in
 	top)
@@ -73,6 +82,13 @@ case "$1" in
 	;;
 	cr) # no 2nd arg, use q.
 		sr $([ -z $2 ] && nx || echo $2) 240p
+	;;
+	F)	# get possible quality
+		# if no 2nd arg, use q.
+		yt_dl $yt_def_args -F $([ -z $2 ] && nx || echo $2)
+	;;
+	w)
+		dl_vid_wget $(nx) && try_play
 	;;
 	*)
 		# If lfile exists: play. otherwise: dl_vid
