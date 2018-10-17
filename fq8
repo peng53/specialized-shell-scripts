@@ -4,7 +4,7 @@ q=${d}mq
 yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 
 alias pp='[ -f ${d}1 ] && mv -f ${d}1 ${d}0'
-alias yt_dl=youtube-dl
+alias yt_dl=~/.local/bin/youtube-dl
 alias err_beep='beep -f 100 -d 500 -r 2'
 alias play_vid='DISPLAY=:0 mpv --pause --keep-open --really-quiet ${d}1'
 alias sr='~/.local/bin/streamlink -p mpv --player-no-close --player-passthrough hls'
