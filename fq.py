@@ -1,10 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+from __future__ import print_function
 import sys
 import os
 import tempfile
 import subprocess
 import time
-#import youtube_dl
+import youtube_dl
 
 player = "mpv"
 player_args = "--really-quiet"
@@ -75,18 +76,34 @@ def clear_file(tmp_dir,q_name):
 def yt_dl_bin(url,v_dir,v_name="1"):
 	speed = get_envvar("speed")
 	quality = get_envvar("quality")
-	cmd = [yt_dl,"-f",quality,"-r",speed,url,"-o",os.join.path(v_dir,v_name)]+yt_dl_args
+	cmd = [yt_dl,"-f",quality,"-r",speed,url,"-o",os.path.join(v_dir,v_name)]+yt_dl_args
 	print("Downloading video quality={:s} at speed={:s}".format(quality,speed))
 	return subprocess.Popen(cmd)
 
-def try_yt(v_dir,v_name="1"):
-	ytdl = {
-		"format":"36",
+def try_yt(url,v_dir,v_name):
+	if not url:
+		print("URL was NULL.")
+		return
+	args = {
+		"format": get_envvar("quality"),
 		"noplaylist":True,
 		"call_home":False,
-		"filename": os.path.join(v_dir,v_name),
-		"tmpfilename": os.path.join(v_dir,v_name),		
+		"outtmpl": unicode(os.path.join(v_dir,v_name)),
+		#"filename": os.path.join(tmp_dir,"2"),
+		"tmpfilename": unicode(os.path.join(v_dir,v_name))	
 	}
+	ydl = youtube_dl.YoutubeDL(args)
+	#downloader_args = {
+	#	"ratelimit" : "40K",
+	#	"continuedl" : True,
+	#	"nopart" : True,
+	#}
+	r = ydl.extract_info(url)
+	return r
+	#dialer = youtube_dl.downloader.FileDownloader(ydl,downloader_args)
+	#info_dict = ydl.extract_info(url,download=True)
+	#dialer.download(filename,info_dict)
+
 
 def case_go(url,resume=False):
 	if not resume:
@@ -130,11 +147,22 @@ def case_top():
 def case_see():
 	with open(os.path.join(tmp_dir,q_name),'r') as f:
 		for l in f:
-			print(l,end='')
+			#print(l,end='')
+			print(l)
 
 def case_view():
 	print("Launching {:s}..".format(player))
 	return view_vid(tmp_dir)
+
+def case_internal():
+	url = remove_top(q_name,tmp_dir)
+	if not url:
+		sys.exit(1)
+	push_out(tmp_dir)
+	r = try_yt(url,tmp_dir,"1")
+	print(r)
+	time.sleep(25)
+	view_vid(tmp_dir)
 
 ops0 = {	#keyword function req_args
 	"view": case_view,
@@ -143,6 +171,7 @@ ops0 = {	#keyword function req_args
 	"fls" : case_flush, #0
 	"resm": case_resume, #0
 	"*"   : case_default, #0
+	"int": case_internal, #0
 }
 ops1 = {
 	"go"  : case_go, #1
