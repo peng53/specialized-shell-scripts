@@ -5,7 +5,11 @@ import os
 import tempfile
 import subprocess
 import time
-import youtube_dl
+try:
+	import youtube_dl
+except:
+	print("youtube-dl api not available,")
+	print("'int' option is useable")
 
 player = "mpv"
 player_args = "--really-quiet"
@@ -89,73 +93,66 @@ def try_yt(url,v_dir,v_name):
 		"noplaylist":True,
 		"call_home":False,
 		"outtmpl": unicode(os.path.join(v_dir,v_name)),
-		#"filename": os.path.join(tmp_dir,"2"),
 		"tmpfilename": unicode(os.path.join(v_dir,v_name))	
 	}
 	ydl = youtube_dl.YoutubeDL(args)
-	#downloader_args = {
-	#	"ratelimit" : "40K",
-	#	"continuedl" : True,
-	#	"nopart" : True,
-	#}
 	r = ydl.extract_info(url)
 	return r
-	#dialer = youtube_dl.downloader.FileDownloader(ydl,downloader_args)
-	#info_dict = ydl.extract_info(url,download=True)
-	#dialer.download(filename,info_dict)
 
-
-def case_go(url,resume=False):
+def case_go(args,resume=False):
+	if len(args)>1:
+		url = args[1]
+	else:
+		url = remove_top(q_name,tmp_dir)
+	if not url:
+		return
 	if not resume:
 		push_out(tmp_dir)
 	p = yt_dl_bin(url,tmp_dir)
 	time.sleep(25)
 	view_vid(tmp_dir)
 	
-def case_default():
-	u = remove_top(q_name,tmp_dir)
-	if u:
-		return case_go(u)
-	else:
-		print("Queue was empty.")
+def case_default(args):
+	return case_go(args,resume=False)
 
-def case_resume(url=None):
-	if not url:
-		url = remove_top(q_name,tmp_dir)
-	if url:
-		return case_go(url,resume=True)
-	else:
-		print("No URL to resume.")
+def case_resume(args):
+	return case_go(args,resume=True)
 
-def case_flush():
+def case_flush(args):
 	clear_file(tmp_dir,q_name)
 	print("Queue was cleared.")
 
-def case_add(url):
-	if url:
-		add_bottom(q_name,tmp_dir,url)
+def case_add(args):
+	if len(args)>1:
+		url = args[1]
+		if url:
+			add_bottom(q_name,tmp_dir,url)
+			return
 	else:
 		print("URL was blank.")
 
-def case_top():
+def case_top(args):
 	url = top(open(os.path.join(tmp_dir,q_name),'r'))
 	if url:
 		print(url.rstrip())
 	else:
 		print("Queue was empty.")
 
-def case_see():
+def case_see(args):
 	with open(os.path.join(tmp_dir,q_name),'r') as f:
 		for l in f:
 			#print(l,end='')
 			print(l)
 
-def case_view():
+def case_view(args):
 	print("Launching {:s}..".format(player))
 	return view_vid(tmp_dir)
 
-def case_internal():
-	url = remove_top(q_name,tmp_dir)
+def case_internal(args):
+	if len(args)>1:
+		url = args[1]
+	else:
+		url = remove_top(q_name,tmp_dir)
 	if not url:
 		sys.exit(1)
 	push_out(tmp_dir)
@@ -164,7 +161,7 @@ def case_internal():
 	time.sleep(25)
 	view_vid(tmp_dir)
 
-ops0 = {	#keyword function req_args
+ops = {	#keyword function req_args
 	"view": case_view,
 	"see" : case_see, #0
 	"top" : case_top, #0
@@ -172,19 +169,14 @@ ops0 = {	#keyword function req_args
 	"resm": case_resume, #0
 	"*"   : case_default, #0
 	"int": case_internal, #0
-}
-ops1 = {
 	"go"  : case_go, #1
 	"add" : case_add, #1
 }
-if len(sys.argv)<2:
-	ops0["*"]()
-	sys.exit(0)
-cmd = sys.argv[1].lower()
-if cmd in ops0:
-	ops0[cmd]()
-elif cmd in ops1:
-	ops1[cmd](sys.argv[2])
-else:
-	sys.exit(2)
 
+if len(sys.argv)<2:
+	ops["*"]([])
+else:
+	args = sys.argv[1:]
+	print(args)
+	if args[0] in ops:
+		ops[args[0]](args)
