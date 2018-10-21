@@ -12,7 +12,7 @@ except:
 	print("'int' option is useable")
 
 player = "mpv"
-player_args = "--really-quiet"
+player_args = ["--really-quiet","--keep-open","--pause"]
 tmp_dir = "/mnt/ramdisk"
 q_name = "mq"
 def_env = {"quality":"36", "speed":"40K"}
@@ -62,7 +62,8 @@ def view_vid(v_dir,v_name="1"):
 	# uses global 'player' and 'player_args'
 	# on linux, this blocks the terminal
 	# returns the 'return code'
-	return subprocess.run([player,player_args,os.path.join(v_dir,v_name)]).returncode
+	#return subprocess.run([player,os.path.join(v_dir,v_name)]+player_args).returncode
+	return subprocess.Popen([player,os.path.join(v_dir,v_name)]+player_args)
 
 def push_out(v_dir,v_name="1",v_name_old="0"):
 	# displaces last vid by replacing v_name_Old with it
