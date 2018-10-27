@@ -153,8 +153,18 @@ def case_default(args: List[str]) -> None:
 	"""
 	Default case.
 	Downloads next item in queue.
+	Auto detects what to use.
 	"""
-	case_go(args,resume=False)
+	url = args[0] if len(args)>1 else remove_top(q_name,tmp_dir) # type: str
+	if not url:
+		return
+	if url.find("youtube.com/")>=0: # its a me, youtube
+		case_go([None,url],resume=False)
+	elif url.find("crunchyroll.com/")>=0: # its a me, me
+		quality = args[1] if len(args)>2 else get_envvar("slquality")
+		case_streamlink([None,url,quality])
+	else:
+		print("Unrecognized url?")
 
 def case_resume(args: List[str]) -> None:
 	"""
@@ -255,13 +265,13 @@ try:
 		ydl = youtube_dl.YoutubeDL(args)
 		r = ydl.extract_info(url)
 		return r
-	def case_internal(args: List[str]):
+	def case_internal(args: List[str]) -> None:
 		"""
 		Calls try_yt with needed args.
 		"""
 		url = args[1] if len(args)>1 else remove_top(q_name,tmp_dir) # type: str
 		if not url:
-			sys.exit(1)
+			return
 		push_out(tmp_dir)
 		r = try_yt(url,tmp_dir,"1")
 		print(r)
@@ -272,7 +282,6 @@ try:
 except ImportError:
 	print("youtube-dl api not available,")
 	print("'int' option is not useable")
-
 
 if __name__=="__main__":
 	if len(sys.argv)<2 or not sys.argv[1] in ops:
