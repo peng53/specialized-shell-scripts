@@ -39,15 +39,21 @@ from typing import List
 
 #except:
 #	print("youtube-dl api not available,")
-#	print("'int' option is useable")
+#	print("'int' option is not useable")
 
 player = "mpv" # type: str
 player_args = ["--really-quiet", "--pause", "--keep-open"] # type: List[str]
 tmp_dir = "/mnt/ramdisk" # type: str
 q_name = "mq" # type: str
-def_env = {"quality":"36", "speed":"40K"} # type: Dict[str,str]
+def_env = {
+	"quality":"36",
+	"speed":"40K",
+	"slquality":"240p",
+} # type: Dict[str,str]
 yt_dl = os.path.expanduser("~/.local/bin/youtube-dl") # type: str
 yt_dl_args = ["--no-part","--youtube-skip-dash-manifest","--no-call-home","--no-playlist"] # type: List[str]
+sl_bin = os.path.expanduser("~/.local/bin/streamlink") # type: str
+sl_bin_args = ["--player-no-close","--player-passthrough","hls"] # type: List[str]
 
 def get_envvar(varname: str) -> str:
 	# gets var value from enviroment.
@@ -129,6 +135,33 @@ def yt_dl_bin(url: str,v_dir: str,v_name: str ="1"):
 	print("Downloading video quality={:s} at speed={:s}".format(quality,speed))
 	return subprocess.Popen(cmd)
 
+def sl_view_bin(url: str,quality: str):
+	"""
+	Runs streamlink with url and quality level.
+	"""
+	cmd = [sl_bin,"-p",player,url,quality]+sl_bin_args
+	return subprocess.run(cmd).returncode
+
+def binary_exists(bin_path: str):
+	"""
+	Checks if binary exists.
+	"""
+	is_win = (os.name == "nt")
+	is_full_path = None
+	if is_win:
+		is_full_path = '\\' in bin_path
+	else:
+		is_full_path = '/' in bin_path
+	if is_full_path:
+		return os.path.isfile(os.path.expanduser(bin_path))
+	else:
+		#for f in os.environ["PATH"].split(os.pathsep):
+		#	if bin_path in os.listdir(f):
+		#		return True
+		#return False
+		return any(bin_path in os.listdir(f) for f in os.environ["PATH"].split(os.pathsep))
+	
+
 def case_go(args: List[str],resume: bool = False) -> None:
 	"""
 	Downloads next item in queue or supplied url from args.
@@ -185,7 +218,7 @@ def case_top(args: List[str]) -> None:
 	"""
 	qfile = os.path.join(tmp_dir,q_name)
 	if os.path.exists(qfile):
-		url = top(open(qfile,'r')) # type :str
+		url = top(open(qfile,'r')) # type: str
 		if url:
 			print(url.rstrip())
 			return
@@ -195,7 +228,7 @@ def case_see(args: List[str]) -> None:
 	"""
 	Print queue contents to stdout.
 	"""
-	qfile = os.path.join(tmp_dir,q_name)
+	qfile = os.path.join(tmp_dir,q_name) # type: str
 	if os.path.exists(qfile):
 		with open(qfile,'r') as f:
 			for l in f:
@@ -208,7 +241,19 @@ def case_view(args: List[str]) -> None:
 	print("Launching {:s}..".format(player))
 	view_vid(tmp_dir)
 
-ops = {	
+def case_streamlink(args: List[str]) -> None:
+	"""
+	Tries to play video with streamlink & 'player'
+	"""
+	url = args[1] if len(args)>1 else remove_top(q_name,tmp_dir) # type: str
+	if url:
+		quality = get_envvar("slquality") # type: str
+		print("Trying streamlink with quality={}".format(quality))
+		sl_view_bin(url,quality)
+	else:
+		print("No URL was provided and queue was empty.")
+
+ops = {
 #keyword function req_args
 	"view": case_view,
 	"see" : case_see,
@@ -216,8 +261,9 @@ ops = {
 	"fls" : case_flush,
 	"resm": case_resume,
 	"*"   : case_default,
-	"go"  : case_go, #1
-	"add" : case_add, #1
+	"go"  : case_go,
+	"add" : case_add,
+	"sl"  : case_streamlink,
 	#"int": case_internal,
 } # type: Dict[str,Callable]
 
