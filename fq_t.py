@@ -2,12 +2,52 @@
 from __future__ import print_function
 import sys
 import os
-import tempfile
-import subprocess
-import time
 from typing import Dict
 from typing import Callable
 from typing import List
+
+def binary_exists(bin_path: str,PATH: List[str] = []) -> bool:
+	"""
+	Checks if binary exists.
+	"""
+	is_win = (os.name == "nt")
+	is_full_path = None
+	if is_win:
+		is_full_path = '\\' in bin_path
+	else:
+		is_full_path = '/' in bin_path
+	if is_full_path:
+		return os.path.isfile(os.path.expanduser(bin_path))
+	else:
+		if not PATH:
+			for f in os.environ["PATH"].split(os.pathsep):
+				PATH.append(f)
+		return any(bin_path in os.listdir(f) for f in PATH)
+
+player = "mpv" # type: str
+player_args = ["--really-quiet", "--pause", "--keep-open"] # type: List[str]
+tmp_dir = "/mnt/ramdisk" # type: str
+q_name = "mq" # type: str
+def_env = {
+	"quality":"36",
+	"speed":"40K",
+	"slquality":"240p",
+} # type: Dict[str,str]
+yt_dl = os.path.expanduser("~/.local/bin/youtube-dl") # type: str
+yt_dl_args = ["--no-part","--youtube-skip-dash-manifest","--no-call-home","--no-playlist"] # type: List[str]
+sl_bin = os.path.expanduser("~/.local/bin/streamlink") # type: str
+sl_bin_args = ["--player-no-close","--player-passthrough","hls"] # type: List[str]
+
+if __name__=="__main__":
+	for bin_path in [player,yt_dl,sl_bin]:
+		if bin_path and not binary_exists(bin_path):
+			print("{} does not exist.".format(bin_path))
+			sys.exit(1)
+
+import tempfile
+import subprocess
+import time
+
 #try:
 #	import youtube_dl
 #	def try_yt(url: str,v_dir: str,v_name: str):
@@ -41,19 +81,6 @@ from typing import List
 #	print("youtube-dl api not available,")
 #	print("'int' option is not useable")
 
-player = "mpv" # type: str
-player_args = ["--really-quiet", "--pause", "--keep-open"] # type: List[str]
-tmp_dir = "/mnt/ramdisk" # type: str
-q_name = "mq" # type: str
-def_env = {
-	"quality":"36",
-	"speed":"40K",
-	"slquality":"240p",
-} # type: Dict[str,str]
-yt_dl = os.path.expanduser("~/.local/bin/youtube-dl") # type: str
-yt_dl_args = ["--no-part","--youtube-skip-dash-manifest","--no-call-home","--no-playlist"] # type: List[str]
-sl_bin = os.path.expanduser("~/.local/bin/streamlink") # type: str
-sl_bin_args = ["--player-no-close","--player-passthrough","hls"] # type: List[str]
 
 def get_envvar(varname: str) -> str:
 	# gets var value from enviroment.
@@ -141,26 +168,6 @@ def sl_view_bin(url: str,quality: str):
 	"""
 	cmd = [sl_bin,"-p",player,url,quality]+sl_bin_args
 	return subprocess.run(cmd).returncode
-
-def binary_exists(bin_path: str):
-	"""
-	Checks if binary exists.
-	"""
-	is_win = (os.name == "nt")
-	is_full_path = None
-	if is_win:
-		is_full_path = '\\' in bin_path
-	else:
-		is_full_path = '/' in bin_path
-	if is_full_path:
-		return os.path.isfile(os.path.expanduser(bin_path))
-	else:
-		#for f in os.environ["PATH"].split(os.pathsep):
-		#	if bin_path in os.listdir(f):
-		#		return True
-		#return False
-		return any(bin_path in os.listdir(f) for f in os.environ["PATH"].split(os.pathsep))
-	
 
 def case_go(args: List[str],resume: bool = False) -> None:
 	"""
@@ -267,8 +274,9 @@ ops = {
 	#"int": case_internal,
 } # type: Dict[str,Callable]
 
-if len(sys.argv)<2 or not sys.argv[1] in ops:
-	ops["*"]([])
-else:
-	args = sys.argv[1:] # type: List[str]
-	ops[args[0]](args)
+if __name__=="__main__":
+	if len(sys.argv)<2 or not sys.argv[1] in ops:
+		ops["*"]([])
+	else:
+		args = sys.argv[1:] # type: List[str]
+		ops[args[0]](args)
