@@ -26,6 +26,11 @@ def binary_exists(bin_path: str,PATH: List[str] = []) -> bool:
 
 player = "mpv" # type: str
 player_args = ["--really-quiet", "--pause", "--keep-open"] # type: List[str]
+yt_dl = os.path.expanduser("~/.local/bin/youtube-dl") # type: str
+yt_dl_args = ["--no-part","--youtube-skip-dash-manifest","--no-call-home","--no-playlist"] # type: List[str]
+sl_bin = os.path.expanduser("~/.local/bin/streamlink") # type: str
+sl_bin_args = ["--player-no-close","--player-passthrough","hls"] # type: List[str]
+
 tmp_dir = "/mnt/ramdisk" # type: str
 q_name = "mq" # type: str
 def_env = {
@@ -33,10 +38,6 @@ def_env = {
 	"speed":"40K",
 	"slquality":"240p",
 } # type: Dict[str,str]
-yt_dl = os.path.expanduser("~/.local/bin/youtube-dl") # type: str
-yt_dl_args = ["--no-part","--youtube-skip-dash-manifest","--no-call-home","--no-playlist"] # type: List[str]
-sl_bin = os.path.expanduser("~/.local/bin/streamlink") # type: str
-sl_bin_args = ["--player-no-close","--player-passthrough","hls"] # type: List[str]
 
 if __name__=="__main__":
 	for bin_path in [player,yt_dl,sl_bin]:
@@ -47,40 +48,6 @@ if __name__=="__main__":
 import tempfile
 import subprocess
 import time
-
-#try:
-#	import youtube_dl
-#	def try_yt(url: str,v_dir: str,v_name: str):
-		#if not url:
-			#print("URL was NULL.")
-			#return
-		#args = {
-			#"format": get_envvar("quality"),
-			#"noplaylist":True,
-			#"call_home":False,
-			#"outtmpl": unicode(os.path.join(v_dir,v_name)),
-			#"tmpfilename": unicode(os.path.join(v_dir,v_name))	
-		#}
-		#ydl = youtube_dl.YoutubeDL(args)
-		#r = ydl.extract_info(url)
-		#return r
-	#def case_internal(args: List[str]):
-		#if len(args)>1:
-			#url = args[1]
-		#else:
-			#url = remove_top(q_name,tmp_dir)
-		#if not url:
-			#sys.exit(1)
-		#push_out(tmp_dir)
-		#r = try_yt(url,tmp_dir,"1")
-		#print(r)
-		#time.sleep(25)
-		#view_vid(tmp_dir)
-
-#except:
-#	print("youtube-dl api not available,")
-#	print("'int' option is not useable")
-
 
 def get_envvar(varname: str) -> str:
 	# gets var value from enviroment.
@@ -173,11 +140,7 @@ def case_go(args: List[str],resume: bool = False) -> None:
 	"""
 	Downloads next item in queue or supplied url from args.
 	"""
-	url = None # type: str
-	if len(args)>1:
-		url = args[1]
-	else:
-		url = remove_top(q_name,tmp_dir)
+	url = args[1] if len(args)>1 else remove_top(q_name,tmp_dir) # type: str
 	if not url:
 		return
 	if not resume:
@@ -251,10 +214,13 @@ def case_view(args: List[str]) -> None:
 def case_streamlink(args: List[str]) -> None:
 	"""
 	Tries to play video with streamlink & 'player'
+	args in additon to 'sl' can contain URL and quality.
+	args[1] is ALWAYS the quality. If getting url from q_file,
+	quality must be set in enviroment.
 	"""
 	url = args[1] if len(args)>1 else remove_top(q_name,tmp_dir) # type: str
 	if url:
-		quality = get_envvar("slquality") # type: str
+		quality = args[2] if len(args)>2 else get_envvar("slquality") # type: str
 		print("Trying streamlink with quality={}".format(quality))
 		sl_view_bin(url,quality)
 	else:
@@ -271,8 +237,42 @@ ops = {
 	"go"  : case_go,
 	"add" : case_add,
 	"sl"  : case_streamlink,
-	#"int": case_internal,
 } # type: Dict[str,Callable]
+
+try:
+	import youtube_dl
+	def try_yt(url: str,v_dir: str,v_name: str):
+		"""
+		Uses youtube-dl's api to download and watch the video.
+		"""
+		args = {
+			"format": get_envvar("quality"),
+			"noplaylist":True,
+			"call_home":False,
+			"outtmpl": unicode(os.path.join(v_dir,v_name)),
+			"tmpfilename": unicode(os.path.join(v_dir,v_name))	
+		}
+		ydl = youtube_dl.YoutubeDL(args)
+		r = ydl.extract_info(url)
+		return r
+	def case_internal(args: List[str]):
+		"""
+		Calls try_yt with needed args.
+		"""
+		url = args[1] if len(args)>1 else remove_top(q_name,tmp_dir) # type: str
+		if not url:
+			sys.exit(1)
+		push_out(tmp_dir)
+		r = try_yt(url,tmp_dir,"1")
+		print(r)
+		time.sleep(25)
+		view_vid(tmp_dir)
+	ops["int"] = case_internal
+
+except ImportError:
+	print("youtube-dl api not available,")
+	print("'int' option is not useable")
+
 
 if __name__=="__main__":
 	if len(sys.argv)<2 or not sys.argv[1] in ops:
