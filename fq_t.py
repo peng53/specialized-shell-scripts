@@ -107,7 +107,7 @@ def view_vid(v_dir: str,v_name: str = "1"):
 		return None
 
 def push_out(v_dir: str,v_name: str = "1",v_name_old: str = "0") -> None:
-	# displaces last vid by replacing v_name_Old with it
+	# displaces last vid by replacing v_name_old with it
 	old = os.path.join(v_dir,v_name_old) # type: str
 	new = os.path.join(v_dir,v_name) # type: str
 	if os.path.exists(old):
@@ -128,13 +128,6 @@ def yt_dl_bin(url: str,v_dir: str,v_name: str ="1"):
 	cmd = [yt_dl,"-f",quality,"-r",speed,url,"-o",os.path.join(v_dir,v_name)]+yt_dl_args # type: List[str]
 	print("Downloading video quality={:s} at speed={:s}".format(quality,speed))
 	return subprocess.Popen(cmd)
-
-def sl_view_bin(url: str,quality: str):
-	"""
-	Runs streamlink with url and quality level.
-	"""
-	cmd = [sl_bin,"-p",player,url,quality]+sl_bin_args
-	return subprocess.run(cmd).returncode
 
 def case_go(args: List[str],resume: bool = False) -> None:
 	"""
@@ -221,20 +214,7 @@ def case_view(args: List[str]) -> None:
 	print("Launching {:s}..".format(player))
 	view_vid(tmp_dir)
 
-def case_streamlink(args: List[str]) -> None:
-	"""
-	Tries to play video with streamlink & 'player'
-	args in additon to 'sl' can contain URL and quality.
-	args[1] is ALWAYS the quality. If getting url from q_file,
-	quality must be set in enviroment.
-	"""
-	url = args[1] if len(args)>1 else remove_top(q_name,tmp_dir) # type: str
-	if url:
-		quality = args[2] if len(args)>2 else get_envvar("slquality") # type: str
-		print("Trying streamlink with quality={}".format(quality))
-		sl_view_bin(url,quality)
-	else:
-		print("No URL was provided and queue was empty.")
+
 
 ops = {
 #keyword function req_args
@@ -246,7 +226,6 @@ ops = {
 	"*"   : case_default,
 	"go"  : case_go,
 	"add" : case_add,
-	"sl"  : case_streamlink,
 } # type: Dict[str,Callable]
 
 try:
@@ -282,6 +261,54 @@ try:
 except ImportError:
 	print("youtube-dl api not available,")
 	print("'int' option is not useable")
+
+try:
+	import streamlink
+	def try_sl(url: str,quality: str):
+		"""
+		Trys to load stream of quality to player
+		"""
+		streams = streamlink.streams(url)
+		if quality in streams:
+			return subprocess.run([player,streams[quality]]+player_args).returncode
+		else:
+			print("Not available in quality={}".format(quality))
+	def case_streamlink(args: List[str]) -> None:
+		"""
+		Provides required parameters to streamlink
+		"""
+		url = args[1] if len(args)>1 else remove_top(q_name,tmp_dir) # type: str
+		quality = args[2] if len(args)>2 else get_envvar("slquality")
+		if not url or not quality:
+			print("URL or quality is required but missing.")
+			return
+		try_sl(url,quality)
+	
+except ImportError:
+	print("streamlink api not available.\nusing binary for sl option.")
+	def sl_view_bin(url: str,quality: str):
+		"""
+		Runs streamlink with url and quality level.
+		"""
+		cmd = [sl_bin,"-p",player,url,quality]+sl_bin_args
+		return subprocess.run(cmd).returncode
+
+	def case_streamlink(args: List[str]) -> None:
+		"""
+		Tries to play video with streamlink & 'player'
+		args in additon to 'sl' can contain URL and quality.
+		args[1] is ALWAYS the quality. If getting url from q_file,
+		quality must be set in enviroment.
+		"""
+		url = args[1] if len(args)>1 else remove_top(q_name,tmp_dir) # type: str
+		if url:
+			quality = args[2] if len(args)>2 else get_envvar("slquality") # type: str
+			print("Trying streamlink with quality={}".format(quality))
+			sl_view_bin(url,quality)
+		else:
+			print("No URL was provided and queue was empty.")
+
+ops["sl"] = case_streamlink
 
 if __name__=="__main__":
 	if len(sys.argv)<2 or not sys.argv[1] in ops:
