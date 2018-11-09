@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import print_function
 import sys
 import os
 from typing import Dict
@@ -238,8 +237,8 @@ try:
 			"format": get_envvar("quality"),
 			"noplaylist":True,
 			"call_home":False,
-			"outtmpl": unicode(os.path.join(v_dir,v_name)),
-			"tmpfilename": unicode(os.path.join(v_dir,v_name))	
+			"outtmpl": os.path.join(v_dir,v_name),
+			"tmpfilename": os.path.join(v_dir,v_name),
 		}
 		ydl = youtube_dl.YoutubeDL(args)
 		r = ydl.extract_info(url)
