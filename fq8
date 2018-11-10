@@ -3,9 +3,10 @@ d=/mnt/ramdisk/
 q=${d}mq
 yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 player_args='--pause --keep-open --really-quiet'
+rss_feeds=~/.newsbeuter/urls
 
 alias pp='[ -f ${d}1 ] && mv -f ${d}1 ${d}0'
-alias youtube-dl=~/.local/bin/youtube-dl
+alias youtube-dl=~/bin/youtube-dl
 alias player='DISPLAY=:0 mpv'
 alias err_beep='beep -f 100 -d 500 -r 2'
 
@@ -93,6 +94,20 @@ then
 		F)	# get possible quality
 			# if no 2nd arg, use q.
 			youtube-dl $yt_def_args -F $([ -z $2 ] && nx || echo $2)
+		;;
+		subscribe)
+	#		if [ $# -gt 1 ]
+	#		then
+	#			l=$2
+	#		else
+	#			l=$(xclip -o)
+	#		fi
+			l=$([ $# -gt 1 ] && echo $2 || xclip -o)
+			if [ -n $l ]
+			then
+				echo $l >> $rss_feeds
+				echo Added $l to $rss_feeds
+			fi
 		;;
 	esac
 else
