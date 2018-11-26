@@ -1,23 +1,40 @@
 #!/bin/sh
 d=/mnt/ramdisk/
 q=${d}mq
-yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 player_args='--pause --keep-open --really-quiet'
+yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 
-alias pp='[ -f ${d}1 ] && mv -f ${d}1 ${d}0'
-alias youtube-dl=~/.local/bin/youtube-dl
-alias player='DISPLAY=:0 mpv'
 alias err_beep='beep -f 100 -d 500 -r 2'
+alias player='mpv'
+alias pp='[ -f ${d}1 ] && mv -f ${d}1 ${d}0'
+alias streamlink='~/.local/bin/streamlink'
+alias youtube-dl='~/.local/bin/youtube-dl'
 
-#alias play_vid='DISPLAY=:0 mpv --pause --keep-open --really-quiet ${d}1'
-alias streamlink='~/.local/bin/streamlink -p mpv --player-no-close --player-passthrough hls'
 nx(){
 	# Gets top of the top. Pops it unless there's an 1st argument.
 	read -r L < $q
 	echo $L
 	[ $# -eq 0 ] && sed -i '1d;/^$/d' $q
 }
+streamlink_dl(){
+	# Usage: streamlink_dl URL [RESM]
+	# Requires atleast 1 argument.
+	[ $# -eq 0 ] && return 1
+	[ $# -eq 1 ] && pp
+	echo Downloading at q = ${squality=240p}
+	streamlink $1 ${squality} -o ${d}1 &
+	sleep 30
+	return 0
+}
+streamlink_stream(){
+	# Usage: streamlink_stream URL
+	# Requires exactly 1 argument.
+	[ $# -eq 0 ] && return 1
+	echo Streaming at ${squality=240p}
+	streamlink -p 'mpv --title="streamlink player"' --player-no-close --player-passthrough hls $1 ${squality}
+}
 try_play(){
+	# Plays last video downloaded.
 	if [ -s ${d}1 ]
 	then
 		player $player_args ${d}1 &
@@ -25,8 +42,8 @@ try_play(){
 		err_beep
 	fi
 }
-dl_vid(){
-	# Usage: dl_vid URL [RESM]
+yt_dl(){
+	# Usage: yt_dl URL [RESM]
 	# Requires atleast 1 argument.
 	[ $# -eq 0 ] || [ -s ${d}lfile ] && return 1
 	touch ${d}lfile
@@ -37,62 +54,53 @@ dl_vid(){
 	rm ${d}lfile
 	return 0
 }
-dl_vid_old(){
-	# where $1 is url
-	# $2 is resume/not
-	[ -z $1 ] && return 1
-	[ -s ${d}lfile ] && return 1
-	touch ${d}lfile
-	[ -z $2 ] && pp
-	echo Downloading at q = ${quality=36} and s = ${speed=40k}
-	youtube-dl $yt_def_args -r $speed -f $quality $1 -o ${d}1 || err_beep &
-	sleep 30
-	rm ${d}lfile
-	return 0
-}
+
 if [ $# -gt 0 ]
 then
 	case "$1" in
+		add)
+			echo $2 >> $q
+		;;
+		cr) # no 2nd arg, use q.
+			streamlink_stream $([ -z $2 ] && nx || echo $2)
+		;;
 		top)
 			nx KEEP
 		;;
-		add)
-			echo $2 >> $q
+		F)	# get possible quality
+			# if no 2nd arg, use q.
+			youtube-dl $yt_def_args -F $([ -z $2 ] && nx || echo $2)
 		;;
 		fls)
 			> $q
 		;;
-		see)
-			cat $q
-		;;
-		view)
-			player $player_args ${d}1 &
+		go)
+			yt_dl $2 && try_play
 		;;
 		halt)
 			[ -n $(pgrep youtube-dl) ] && killall youtube-dl
 		;;
-		resm)
-			dl_vid $([ -z $2 ] && nx || echo $2) RESM && try_play
-		;;
-		xc)
-			dl_vid $(xclip -o) && try_play
-		;;
-		go)
-			dl_vid $2 && try_play
-		;;
 		plunge)
 			[ -f ${d}lfile ] && rm ${d}lfile
+		;;
+		resm)
+			yt_dl $([ -z $2 ] && nx || echo $2) RESM && try_play
+		;;
+		see)
+			cat $q
 		;;
 		sets)
 			echo dash- use speed=X then export
 			echo fish- use set -x speed
 		;;
-		cr) # no 2nd arg, use q.
-			streamlink $([ -z $2 ] && nx || echo $2) ${squality=240p}
+		sl)
+			streamlink_dl $([ -z $2 ] && nx || echo $2) && try_play
 		;;
-		F)	# get possible quality
-			# if no 2nd arg, use q.
-			youtube-dl $yt_def_args -F $([ -z $2 ] && nx || echo $2)
+		view)
+			player $player_args ${d}1 &
+		;;
+		xc)
+			yt_dl $(xclip -o) && try_play
 		;;
 	esac
 else
@@ -105,10 +113,10 @@ else
 		url=`nx`
 		case "$url" in
 			*.youtube.com/watch?v=*)
-				dl_vid $url && try_play
+				yt_dl $url && try_play
 			;;
 			*.crunchyroll.com/*)
-				streamlink $url ${squality=240p}
+				streamlink_stream $url
 			;;
 			*)
 				echo $url
@@ -118,3 +126,4 @@ else
 		esac
 	fi
 fi
+
