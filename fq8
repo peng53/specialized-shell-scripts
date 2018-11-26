@@ -6,7 +6,7 @@ player_args='--pause --keep-open --really-quiet'
 rss_feeds=~/.newsbeuter/urls
 
 alias pp='[ -f ${d}1 ] && mv -f ${d}1 ${d}0'
-alias youtube-dl=~/bin/youtube-dl
+alias youtube-dl=~/.local/bin/youtube-dl
 alias player='DISPLAY=:0 mpv'
 alias err_beep='beep -f 100 -d 500 -r 2'
 
