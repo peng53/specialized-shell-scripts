@@ -60,7 +60,7 @@ if [ $# -gt 0 ]
 then
 	case "$1" in
 		add)
-			echo $2 >> $q
+			[ $# -eq 1 ] && echo `xclip -o` >> $q || echo $2 >> $q
 		;;
 		cr) # no 2nd arg, use q.
 			streamlink_stream $([ -z $2 ] && nx || echo $2)
