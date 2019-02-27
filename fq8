@@ -11,6 +11,19 @@ alias pp='[ -f ${d}1 ] && mv -f ${d}1 ${d}0'
 alias streamlink='~/.local/bin/streamlink'
 alias youtube-dl='~/.local/bin/youtube-dl'
 
+dash_tube(){
+	[ $# -eq 0 ] && return 1
+	[ $# -eq 1 ] && pp
+	echo Downloading at vq = ${vquality=242} and aq = ${aquality=250} at s = ${speed=25K}
+	youtube-dl $yt_def_args -r $speed -f $vquality $1 -o ${d}1 &
+	sleep 10
+	[ -f ${d}1aud ] && mv -f ${d}1aud ${d}0aud
+	youtube-dl $yt_def_args -q -r $speed -f $aquality $1 -o ${d}1aud &
+	sleep 20
+	player $player_args ${d}1 --audio-file ${d}1aud
+	return 0
+}
+
 nx(){
 	# Gets top of the top. Pops it unless there's an 1st argument.
 	read -r L < $q
@@ -68,6 +81,9 @@ then
 		top)
 			nx KEEP
 		;;
+		dt)
+			dash_tube $([ -z $2 ] && nx || echo $2)
+		;;
 		F)	# get possible quality
 			# if no 2nd arg, use q.
 			youtube-dl $yt_def_args -F $([ -z $2 ] && nx || echo $2)
@@ -120,6 +136,7 @@ else
 		rm ${d}lfile
 	else
 		url=`nx`
+		[ -z $url ] && exit 1
 		case "$url" in
 			*.youtube.com/watch?v=*)
 				yt_dl $url && try_play
