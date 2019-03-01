@@ -63,7 +63,7 @@ streamlink_dl(){
 streamlink_stream(){
 	# Uses $: url
 	echo Streaming at ${squality=240p}
-	streamlink -p player --player-args= '--title="streamlink player"' --player-no-close --player-passthrough hls $url ${squality}
+	streamlink -p 'mpv --title="streamlink player"' --player-no-close --player-passthrough hls $url ${squality}
 }
 case "$1" in
 	add)
