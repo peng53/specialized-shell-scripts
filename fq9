@@ -28,7 +28,8 @@ set_url_ax(){
 	echo URL: $url
 }
 view_file(){
-	[ -s ${d}1 ] && player $player_args ${d}1 --audio-file=${d}1aud &
+	[ -s ${d}1aud ] && dash=--audio-file=${d}1aud
+	[ -s ${d}1 ] && player $player_args ${d}1 $dash &
 }
 overwrite_f(){
 	# Overwrites filename 2nd arg at $d with 1st arg
@@ -55,7 +56,7 @@ youtube_dash(){
 }
 streamlink_dl(){
 	# Uses $: url resume
-	[ $resume -eq 0 ] && overwrite_f 1 0
+	[ $resume -eq 0 ] && overwrite_f 1 0 && overwrite_f 1aud 0aud
 	echo Downloading at q = ${squality=240p}
 	streamlink $url ${squality} -o ${d}1 &
 	sleep 30
@@ -104,13 +105,13 @@ case "$1" in
 	sld)
 		shift
 		set_url $@
-		streamlink_dl
+		streamlink_dl && view_file
 	;;
 	sldr)
 		shift
 		set_url $@
 		resume=1
-		streamlink_dl
+		streamlink_dl && view_file
 	;;
 	*)
 		#echo Options were: $@
