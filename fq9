@@ -1,7 +1,7 @@
 #!/bin/sh
 d=/mnt/ramdisk/
 q=${d}mq
-player_args='--pause --keep-open --really-quiet'
+player_args='--pause --keep-open --really-quiet --autofit-smaller=480x360'
 yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 resume=0
 alias player='mpv'
@@ -14,9 +14,14 @@ nx(){
 	[ $# -eq 0 ] && sed -i '1d;/^$/d' $q
 }
 arg_or_xclip(){
-	[ $# -eq 1 ] && echo $1 || xclip -o 2> /dev/null
+	[ $# -gt 0 ] && echo $1 || xclip -o 2> /dev/null
 }
 set_url(){
+	[ $# -gt 0 ] && url=$1 || [ -s $q ] && nx
+	[ -z $url ] && exit 1
+	echo URL: $url
+}
+set_url_ax(){
 	# Given an arglist, set URL if possible.
 	url=`arg_or_xclip $@`
 	[ -z $url ] && [ -s $q ] && exit 1
@@ -43,8 +48,7 @@ youtube_dash(){
 	view_file
 }
 view_file(){
-	[ -s ${d}1 ] && player $player_args ${d}1 --audio-file-auto=fuzzy &	
-}
+	[ -s ${d}1 ] && player $player_args ${d}1 --audio-file=${d}1aud &	}
 streamlink_dl(){
 	# Uses $: url resume
 	[ $resume -eq 0 ] && overwrite_f 1 0
@@ -60,7 +64,7 @@ streamlink_stream(){
 case "$1" in
 	add)
 		shift
-		set_url $@
+		set_url_ax $@
 		[ -z $url ] || echo $url >> $q
 	;;
 	top)
@@ -81,6 +85,12 @@ case "$1" in
 	view)
 		view_file
 	;;
+	ytdr)
+		shift
+		set_url $@
+		resume=1
+		youtube_dash
+	;;
 	sls)
 		shift
 		set_url $@
@@ -89,6 +99,12 @@ case "$1" in
 	sld)
 		shift
 		set_url $@
+		streamlink_dl
+	;;
+	sld)
+		shift
+		set_url $@
+		resume=1
 		streamlink_dl
 	;;
 	*)
