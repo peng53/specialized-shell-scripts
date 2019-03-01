@@ -33,8 +33,9 @@ sl_bin_args = ["--player-no-close","--player-passthrough","hls"] # type: List[st
 tmp_dir = "/mnt/ramdisk" # type: str
 q_name = "mq" # type: str
 def_env = {
-	"quality":"36",
-	"speed":"40K",
+	"quality":"242",
+	"aquality":"250",
+	"speed":"32K",
 	"slquality":"240p",
 } # type: Dict[str,str]
 
@@ -93,14 +94,17 @@ def add_bottom(f_name: str,f_dir: str,line: str) -> None:
 		with open(os.path.join(f_dir,f_name),'a') as f:
 			f.write(l+'\n')
 
-def view_vid(v_dir: str,v_name: str = "1"):
+def view_vid(v_dir: str,v_name: str, a_name: str = None):
 	# watch the video that was downloaded.
 	# uses global 'player' and 'player_args'
 	# on linux, this blocks the terminal
 	# returns the 'return code'
 	vid = os.path.join(v_dir,v_name)
 	if os.path.exists(vid):
-		return subprocess.run([player,vid]+player_args).returncode
+		cmd = [player,vid]+player_args
+		if a_name:
+			cmd.append('--audio-file='+os.path.join(v_dir,a_name))
+		return subprocess.run(cmd).returncode
 	else:
 		print("No video file exists.")
 		return None
@@ -118,14 +122,13 @@ def clear_file(tmp_dir,q_name) -> None:
 	# empties a file
 	open(os.path.join(tmp_dir,q_name),'w').close()
 
-def yt_dl_bin(url: str,v_dir: str,v_name: str ="1"):
+def yt_dl_bin(url: str, dformat: str, v_dir: str,v_name: str ="1"):
 	"""
 	Downloads video with youtube-dl binary.
 	"""
 	speed = get_envvar("speed") # type: str
-	quality = get_envvar("quality") # type: str
-	cmd = [yt_dl,"-f",quality,"-r",speed,url,"-o",os.path.join(v_dir,v_name)]+yt_dl_args # type: List[str]
-	print("Downloading video quality={:s} at speed={:s}".format(quality,speed))
+	cmd = [yt_dl,"-q","-f",dformat,"-r",speed,url,"-o",os.path.join(v_dir,v_name)]+yt_dl_args # type: List[str]
+	print("Downloading video quality={:s} at speed={:s}".format(dformat,speed))
 	return subprocess.Popen(cmd)
 
 def case_go(args: List[str],resume: bool = False) -> None:
@@ -136,10 +139,13 @@ def case_go(args: List[str],resume: bool = False) -> None:
 	if not url:
 		return
 	if not resume:
-		push_out(tmp_dir)
-	p = yt_dl_bin(url,tmp_dir)
-	time.sleep(25)
-	view_vid(tmp_dir)
+		push_out(tmp_dir,'1','0')
+		push_out(tmp_dir,'1aud','0aud')
+	vid = yt_dl_bin(url,get_envvar("quality"),tmp_dir)
+	time.sleep(15)
+	aud = yt_dl_bin(url,get_envvar("aquality"),tmp_dir,"1aud")
+	time.sleep(10)
+	view_vid(tmp_dir,'1','1aud')
 	
 def case_default(args: List[str]) -> None:
 	"""
@@ -211,9 +217,7 @@ def case_view(args: List[str]) -> None:
 	Launch viewer and player last downloaded video.
 	"""
 	print("Launching {:s}..".format(player))
-	view_vid(tmp_dir)
-
-
+	view_vid(tmp_dir,'1','1aud')
 
 ops = {
 #keyword function req_args
@@ -229,12 +233,12 @@ ops = {
 
 try:
 	import youtube_dl
-	def try_yt(url: str,v_dir: str,v_name: str):
+	def try_yt(url: str,dformat: str,v_dir: str,v_name: str):
 		"""
 		Uses youtube-dl's api to download and watch the video.
 		"""
 		args = {
-			"format": get_envvar("quality"),
+			"format": dformat,
 			"noplaylist":True,
 			"call_home":False,
 			"outtmpl": os.path.join(v_dir,v_name),
@@ -251,10 +255,13 @@ try:
 		if not url:
 			return
 		push_out(tmp_dir)
-		r = try_yt(url,tmp_dir,"1")
-		print(r)
-		time.sleep(25)
-		view_vid(tmp_dir)
+		v = try_yt(url,get_envvar("quality"),tmp_dir,"1")
+		print(v)
+		time.sleep(15)
+		a = try_yt(url,get_envvar("aquality"),tmp_dir,"1aud")
+		print(a)
+		time.sleep(15)
+		view_vid(tmp_dir,'1','1aud')
 	ops["int"] = case_internal
 
 except ImportError:
