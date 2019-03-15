@@ -86,7 +86,7 @@ then
 		add)
 			shift
 			set_url_ax $@
-			echo 'Added' $url 'to queue.'
+			echo 'Added to queue.'
 			[ -z $url ] || echo $url >> $q
 		;;
 		add_hist)
