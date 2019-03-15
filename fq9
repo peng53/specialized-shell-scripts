@@ -66,63 +66,72 @@ streamlink_stream(){
 	echo Streaming at ${squality=240p}
 	streamlink -p 'mpv --title="streamlink player"' --player-no-close --player-passthrough hls $url ${squality}
 }
-case "$1" in
-	add)
-		shift
-		set_url_ax $@
-		[ -z $url ] || echo $url >> $q
-	;;
-	top)
-		nx KEEP
-		echo $url
-	;;
-	fls)
-		> $q
-	;;
-	see)
-		cat $q
-	;;
-	view)
-		view_file
-	;;
-	ytd)
-		shift
-		set_url $@
-		youtube_dash
-	;;
-	ytdr)
-		shift
-		set_url $@
-		resume=1
-		echo 'Resuming download..'
-		youtube_dash
-	;;
-	sls)
-		shift
-		set_url $@
-		streamlink_stream
-	;;
-	sld)
-		shift
-		set_url $@
-		streamlink_dl && view_file
-	;;
-	sldr)
-		shift
-		set_url $@
-		resume=1
-		streamlink_dl && view_file
-	;;
-	*)
-		#echo Options were: $@
-		set_url $@
-		case "$url" in
-			*.youtube.com/watch?v=*)
-				youtube_dash
-			;;
-			*.crunchyroll.com/*)
-				streamlink_stream
-			;;
-		esac
-	;;
-esac
+if [ $# -gt 0 ]
+then
+	case "$1" in
+		add)
+			shift
+			set_url_ax $@
+			[ -z $url ] || echo $url >> $q
+		;;
+		top)
+			nx KEEP
+			echo $url
+		;;
+		fls)
+			> $q
+		;;
+		see)
+			cat $q
+		;;
+		view)
+			view_file
+		;;
+		halt)
+			killall youtube-dl
+		;;
+		ytd)
+			# If 'r' follows ytd, then resume.
+			shift
+			if [ "$1" = 'r' ]
+			then
+				shift
+				resume=1
+				echo 'Resuming download..'
+			fi
+			set_url $@
+			youtube_dash
+		;;
+		sls)
+			shift
+			set_url $@
+			streamlink_stream
+		;;
+		sld)
+			shift
+			if [ "$1" = 'r' ]
+			then
+				shift
+				resume=1
+				echo 'Resuming download..'
+			fi
+			set_url $@
+			streamlink_dl && view_file
+		;;
+		*)
+			echo 'Arguments not recognized'
+			echo $@
+		;;
+	esac
+else
+	#echo Options were: $@
+	set_url $@
+	case "$url" in
+		*.youtube.com/watch?v=*)
+			youtube_dash
+		;;
+		*.crunchyroll.com/*)
+			streamlink_stream
+		;;
+	esac
+fi
