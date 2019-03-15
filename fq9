@@ -1,6 +1,7 @@
 #!/bin/sh
 d=/mnt/ramdisk/
 q=${d}mq
+q_h=${d}q_hist
 player_args='--pause --keep-open --really-quiet --autofit-smaller=480x360'
 yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 resume=0
@@ -8,6 +9,14 @@ alias player='mpv'
 alias streamlink='~/.local/bin/streamlink'
 alias youtube-dl='~/.local/bin/youtube-dl'
 
+hist_add(){
+	if [ -s $q_h ]
+	then
+		last=$(tail -n 1 $q_h)
+		[ $last = $1 ] && return 0
+	fi
+	echo $1 >> $q_h
+}
 nx(){
 	# Gets top of the top. Pops it unless there's an 1st argument.
 	read -r url < $q
@@ -20,12 +29,14 @@ set_url(){
 	[ $# -gt 0 ] && url=$1 || [ -s $q ] && nx
 	[ -z $url ] && exit 1
 	echo URL: $url
+	hist_add $url
 }
 set_url_ax(){
 	# Given an arglist, set URL if possible.
 	url=`arg_or_xclip $@`
 	[ -z $url ] && [ -s $q ] && exit 1
-	echo URL: $url
+	echo 'URL:' $url
+	hist_add $url
 }
 view_file(){
 	[ -s ${d}1aud ] && dash=--audio-file=${d}1aud
@@ -39,7 +50,7 @@ youtube_f_get(){
 	# Uses $url $resume
 	# Args are: 1-quality 2-speed 3-suffix
 	[ $resume -eq 0 ] && overwrite_f 1${3} 0${3}
-	echo Downloading at f$1 and s = $2
+	echo 'Downloading at f'$1 'and s =' $2
 	youtube-dl $yt_def_args -r $2 -f $1 $url -o ${d}1${3} &
 }
 youtube_dash(){
@@ -57,13 +68,13 @@ youtube_dash(){
 streamlink_dl(){
 	# Uses $: url resume
 	[ $resume -eq 0 ] && overwrite_f 1 0 && overwrite_f 1aud 0aud
-	echo Downloading at q = ${squality=240p}
+	echo 'Downloading at q =' ${squality=240p}
 	streamlink $url ${squality} -o ${d}1 &
 	sleep 30
 }
 streamlink_stream(){
 	# Uses $: url
-	echo Streaming at ${squality=240p}
+	echo 'Streaming at' ${squality=240p}
 	streamlink -p 'mpv --title="streamlink player"' --player-no-close --player-passthrough hls $url ${squality}
 }
 if [ $# -gt 0 ]
@@ -72,7 +83,13 @@ then
 		add)
 			shift
 			set_url_ax $@
+			echo 'Added' $url 'to queue.'
 			[ -z $url ] || echo $url >> $q
+		;;
+		add_hist)
+			[ -s $q_h ] || return 0
+			url=`tail -n 1 $q_h`
+			echo 'Added' $url 'back to queue.'
 		;;
 		top)
 			nx KEEP
@@ -80,6 +97,7 @@ then
 		;;
 		fls)
 			> $q
+			echo 'Queue flushed.'
 		;;
 		see)
 			cat $q
@@ -89,6 +107,10 @@ then
 		;;
 		halt)
 			killall youtube-dl
+			echo 'youtube-dl killed.'
+		;;
+		hist)
+			cat $q_h
 		;;
 		ytd)
 			# If 'r' follows ytd, then resume.
