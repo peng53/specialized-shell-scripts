@@ -63,6 +63,7 @@ youtube_dash(){
 	printf '\n'
 	youtube_f_get ${aquality=250} ${speed} aud
 	sleep 20
+	hist_add $url
 	view_file
 }
 streamlink_dl(){
@@ -71,11 +72,13 @@ streamlink_dl(){
 	echo 'Downloading at q =' ${squality=240p}
 	streamlink $url ${squality} -o ${d}1 &
 	sleep 30
+	hist_add $url
 }
 streamlink_stream(){
 	# Uses $: url
 	echo 'Streaming at' ${squality=240p}
 	streamlink -p 'mpv --title="streamlink player"' --player-no-close --player-passthrough hls $url ${squality}
+	hist_add $url
 }
 if [ $# -gt 0 ]
 then
