@@ -1,22 +1,18 @@
 #!/bin/sh
 [ $# -eq 0 ] && return 1
 
-bin=
-def_args=
+#cwd=`dirname $0`
 case "$1" in
 	*.jpg|*.jpeg|*.png|*.gif) # image exts
-		bin=feh
-		def_args='-x -k -q'
+		feh -x -k -q $1
 	;;
 	*.mp4|*.avi|*.flv) # video exts
-		bin=mpv
-		def_args='--pause --keep-open --really-quiet'
+		mpv --pause --keep-open --really-quiet $1
 	;;
 	https://www.youtube.com/watch?v=*|*.crunchyroll.com/*)
-		bin='./fq9 add'
+		`dirname $0`/fq9 add $1
 	;;
 	*) # the default option
-		bin=xlinks2
+		xlinks2 $1
 	;;
 esac
-exec $bin $def_args $1
