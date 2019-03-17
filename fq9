@@ -26,17 +26,24 @@ arg_or_xclip(){
 	[ $# -gt 0 ] && echo $1 || xclip -o 2> /dev/null
 }
 set_url(){
+	# Sets url to either $1 or whatever on the queue.
 	[ $# -gt 0 ] && url=$1 || [ -s $q ] && nx
 	[ -z $url ] && exit 1
-	echo URL: $url
-	hist_add $url
+	echo 'URL:' $url
 }
 set_url_ax(){
 	# Given an arglist, set URL if possible.
+	# Sets url to either $1 or whatever on the xclipboard.
+	# Special case if $url was 'hist' in which set_url_hist is used.
 	url=`arg_or_xclip $@`
+	[ "$url" = 'hist' ] && set_url_hist
 	[ -z $url ] && [ -s $q ] && exit 1
 	echo 'URL:' $url
-	hist_add $url
+}
+set_url_hist(){
+	# Set $url to last line of hist file if it exists.
+	[ -s $q_h ] || exit 1
+	url=`tail -n 1 $q_h`
 }
 view_file(){
 	[ -s ${d}1aud ] && dash=--audio-file=${d}1aud
@@ -86,14 +93,19 @@ then
 		add)
 			shift
 			set_url_ax $@
-			echo 'Added to queue.'
-			[ -z $url ] || echo $url >> $q
+			#[ $url = 'hist' ] && set_url_hist
+			if [ -n $url ]
+			then
+				echo 'Added to queue.'
+				echo $url >> $q
+			fi
 		;;
-		add_hist)
-			[ -s $q_h ] || return 0
-			url=`tail -n 1 $q_h`
-			echo 'Added' $url 'back to queue.'
-		;;
+#		add_hist)
+#			[ -s $q_h ] || return 0
+#			url=`tail -n 1 $q_h`
+#			echo $url >> $q
+#			echo 'Added' $url 'back to queue.'
+#		;;
 		top)
 			nx KEEP
 			echo $url
