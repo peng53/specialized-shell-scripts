@@ -45,6 +45,17 @@ set_url_hist(){
 	[ -s $q_h ] || exit 1
 	url=`tail -n 1 $q_h`
 }
+need_resume(){
+	# Sets $resume if needed.
+	if [ "$1" = 'r' ]
+	then
+		resume=1
+		echo 'Resuming download..'
+		return 0
+	else
+		return 1
+	fi
+}
 view_file(){
 	[ -s ${d}1aud ] && dash=--audio-file=${d}1aud
 	[ -s ${d}1 ] && player $player_args ${d}1 $dash &
@@ -93,19 +104,12 @@ then
 		add)
 			shift
 			set_url_ax $@
-			#[ $url = 'hist' ] && set_url_hist
 			if [ -n $url ]
 			then
 				echo 'Added to queue.'
 				echo $url >> $q
 			fi
 		;;
-#		add_hist)
-#			[ -s $q_h ] || return 0
-#			url=`tail -n 1 $q_h`
-#			echo $url >> $q
-#			echo 'Added' $url 'back to queue.'
-#		;;
 		top)
 			nx KEEP
 			echo $url
@@ -128,14 +132,9 @@ then
 			cat $q_h
 		;;
 		ytd)
-			# If 'r' follows ytd, then resume.
+			# (resume-able)
 			shift
-			if [ "$1" = 'r' ]
-			then
-				shift
-				resume=1
-				echo 'Resuming download..'
-			fi
+			need_resume $1 && shift
 			set_url $@
 			youtube_dash
 		;;
@@ -145,13 +144,9 @@ then
 			streamlink_stream
 		;;
 		sld)
+			# (resume-able)
 			shift
-			if [ "$1" = 'r' ]
-			then
-				shift
-				resume=1
-				echo 'Resuming download..'
-			fi
+			need_resume $1 && shift
 			set_url $@
 			streamlink_dl && view_file
 		;;
