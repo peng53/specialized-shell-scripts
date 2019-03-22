@@ -54,8 +54,10 @@ def get_envvar(varname: str) -> str:
 	# if not present, select default from def_env dict
 	# if not present there, return None.
 	if varname in os.environ:
+		print("Using enviroment var {}".format(varname))
 		return os.environ[varname]
 	elif varname in def_env:
+		print("Using def var {}".format(varname))
 		return def_env[varname]
 	else:
 		return None
@@ -270,12 +272,24 @@ except ImportError:
 
 try:
 	import streamlink
-	def query_formats(url: str, quality: str=None):
+	def interactive_format_choose(streams):
+		print('  '.join(str(q) for q in streams))
+		print('Choose alternative format from above.')
+		choice = None
+		while (choice not in streams):
+			choice = input(':')
+			if len(choice) == 0:
+				return None
+		return streams[choice]
+	def query_formats(url: str, quality: str):
 		streams = streamlink.streams(url)
-		if quality:
-			return streams[quality] if quality in streams else None
+		if quality in streams:
+			print("Quality={}".format(quality))
+			return streams[quality]
 		else:
-			return [str(q for q in streams)]
+			print("Quality {} not available.".format(quality))
+			return interactive_format_choose(streams)
+
 	def try_sl(url: str,quality: str):
 		"""
 		Trys to load stream of quality to player
@@ -283,8 +297,6 @@ try:
 		stream = query_formats(url,quality)
 		if stream:
 			return subprocess.run([player,stream.url]+player_args).returncode
-		else:
-			print("Not available in quality={}".format(quality))
 	def case_streamlink(args: List[str]) -> None:
 		"""
 		Provides required parameters to streamlink
