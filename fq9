@@ -37,7 +37,7 @@ set_url_ax(){
 	# Special case if $url was 'hist' in which set_url_hist is used.
 	url=`arg_or_xclip $@`
 	[ "$url" = 'hist' ] && set_url_hist
-	[ -z $url ] && [ -s $q ] && exit 1
+	[ -z "$url" ] && [ -s $q ] && exit 1
 	echo 'URL:' $url
 }
 set_url_hist(){
@@ -135,19 +135,19 @@ then
 			# (resume-able)
 			shift
 			need_resume $1 && shift
-			set_url $@
+			set_url_ax $@
 			youtube_dash
 		;;
 		sls)
 			shift
-			set_url $@
+			set_url_ax $@
 			streamlink_stream
 		;;
 		sld)
 			# (resume-able)
 			shift
 			need_resume $1 && shift
-			set_url $@
+			set_url_ax $@
 			streamlink_dl && view_file
 		;;
 		*)
@@ -158,6 +158,7 @@ then
 else
 	#echo Options were: $@
 	set_url $@
+	# Will only grab from queue since $1 will be blank.
 	case "$url" in
 		*.youtube.com/watch?v=*)
 			youtube_dash
