@@ -270,13 +270,19 @@ except ImportError:
 
 try:
 	import streamlink
+	def query_formats(url: str, quality: str=None):
+		streams = streamlink.streams(url)
+		if quality:
+			return streams[quality] if quality in streams else None
+		else:
+			return [str(q for q in streams)]
 	def try_sl(url: str,quality: str):
 		"""
 		Trys to load stream of quality to player
 		"""
-		streams = streamlink.streams(url)
-		if quality in streams:
-			return subprocess.run([player,streams[quality]]+player_args).returncode
+		stream = query_formats(url,quality)
+		if stream:
+			return subprocess.run([player,stream.url]+player_args).returncode
 		else:
 			print("Not available in quality={}".format(quality))
 	def case_streamlink(args: List[str]) -> None:
