@@ -32,6 +32,7 @@ sl_bin_args = ["--player-no-close","--player-passthrough","hls"] # type: List[st
 
 tmp_dir = "/mnt/ramdisk" # type: str
 q_name = "mq" # type: str
+q_hist_name = "q_hist" # type: str
 def_env = {
 	"quality":"242",
 	"aquality":"250",
@@ -79,14 +80,22 @@ def remove_top(f_name: str,f_dir: str) -> str:
 	os.rename(os.path.join(f_dir,f_name),tmp_f)
 	r = None # type: str
 	with open(tmp_f,'r') as f, open(os.path.join(f_dir,f_name),'w') as g:
+		"""
+		This block sets r to the first line
+		and then writes the rest to 'new' tmpfile
+		"""
 		l = f.readline() # type: str
 		r = l
 		while l:
 			l = f.read(1024)
 			g.write(l)
 	os.remove(tmp_f)
-	return r.rstrip() if r else None
-
+	if r:
+		r = r.rstrip()
+		add_bottom(q_hist_name,tmp_dir, r)
+		return r
+	else:
+		return None
 def add_bottom(f_name: str,f_dir: str,line: str) -> None:
 	"""
 	Appends line to file f_name residing in f_dir.
