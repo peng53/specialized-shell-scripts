@@ -49,11 +49,14 @@ call_type = [
 ]
 
 url = sys.argv[1] # type: str
-cmd = "xlinks2" # type: str
+cmd = ["xlinks2"]
 
 for t in call_type:
 	if t.test(url):
-		cmd = t.action+' '+t.args if t.args else t.action # type: str
+		cmd = [t.action]
+		if t.args:
+			cmd.append(t.args)
 		break
 
-Popen([cmd, url])
+cmd.append(url)
+Popen(cmd)
