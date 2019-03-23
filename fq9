@@ -5,9 +5,8 @@ q_h=${d}q_hist
 player_args='--pause --keep-open --really-quiet --autofit-smaller=480x360'
 yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 resume=0
-alias player='mpv'
-alias streamlink='~/.local/bin/streamlink'
-alias youtube-dl='~/.local/bin/youtube-dl'
+
+. ./aliaes.sh
 
 hist_add(){
 	if [ -s $q_h ]
@@ -135,7 +134,7 @@ then
 			# (resume-able)
 			shift
 			need_resume $1 && shift
-			set_url_ax $@
+			set_url $@
 			youtube_dash
 		;;
 		sls)
@@ -147,7 +146,7 @@ then
 			# (resume-able)
 			shift
 			need_resume $1 && shift
-			set_url_ax $@
+			set_url $@
 			streamlink_dl && view_file
 		;;
 		*)
