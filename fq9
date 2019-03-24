@@ -6,7 +6,6 @@ player_args='--pause --keep-open --really-quiet --autofit-smaller=480x360'
 yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 resume=0
 
-. ./aliaes.sh
 
 hist_add(){
 	if [ -s $q_h ]
