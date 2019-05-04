@@ -9,38 +9,99 @@ package FQ;
 
 our $outd = '/mnt/ramdisk/';
 our $qfile = $outd.'q.dbm';
-our $yt_args = '--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist';
+our @yt_args = qw(--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist);
+our @player_args= qw(--pause --keep-open --really-quiet);
+our $MVID = 5;
+
+sub view {
+	my $vid = shift;
+	my $dash = ( -e $vid.'aud' ) ? "--audio-file=${vid}aud" : '';
+	system("mpv @player_args $vid $dash &");
+}
 
 sub ytdl_get {
 	my %args = @_;
-	print `echo youtube-dl $yt_args -r $args{speed} -f $args{fcode} $args{url} -o $args{out} &`;
+	print "\nDownloading at quality = $args{fcode}, speed $args{speed}\n";
+	system("youtube-dl @yt_args -r $args{speed} -f $args{fcode} -o $args{out} $args{url} & ");
+	print "\n";
+	#print `youtube-dl $yt_args -r $args{speed} -f $args{fcode} '$args{url}' -o $args{out} &`;
 }
 
 sub ytdl_dash {
-	my $url = shift;
+	my $url = shift or die 'Need URL!';
+	my $vid = shift or die 'Need output file!';
+	if (-e $vid) {
+		unlink($vid);
+		unlink($vid.'aud') if -e $vid.'aud';
+	}
 	ytdl_get((
 		speed => '32K',
 		fcode => '242',
 		url => $url,
-		out => $outd.'1'
+		out => $vid
 	));
+	print "Waiting 10 secs to download audio..\n";
 	sleep 10;
-	$yt_args .= ' -q';
+	push(@yt_args,' -q');
 	ytdl_get((
 		speed => '32K',
 		fcode => '250',
 		url => $url,
-		out => $outd.'1aud'
+		out => $vid.'aud'
 	));
+	print "Waiting 20 secs to play..\n";
+	sleep 20;
+	view($vid);
 }
 
 sub add {
+	my $hash = shift;
 	my $url = shift;
+	my $old = DQueue::add($hash,$url);
+	print "Overwritten: $old\n" if $old;
+	print "Added url: $url\n";
+}
 
+sub nextu {
+	my $hash = shift;
+	my $url = DQueue::get($hash);
+	DQueue::advanceRead($hash);
+	print "$url\n";
+	return $url;
+}
+
+sub initDBM {
+	my $hash = shift;
+	if (! keys %$hash) {
+		DQueue::initDBM($hash);
+		$$hash{'cvid'} = 0;
+		$$hash{'mvid'} = $MVID;
+	}
+}
+
+sub nextVid {
+	my $hash = shift;
+	my $vid = $$hash{'cvid'};
+	($$hash{'cvid'} += 1) %= $$hash{'mvid'};
+	return $outd.$vid;
 }
 
 sub main {
-	ytdl_dash('testtube');
+	my %dhash;
+	DQueue::loadIt(\%dhash, $qfile);
+	FQ::initDBM(\%dhash);
+	my $cmd = shift or die 'No Cmd Arg Given.';
+	if ($cmd eq 'add') {
+		my $url = shift or die 'No Url Arg Given.';
+		FQ::add(\%dhash,$url);
+	} elsif ($cmd eq 'view') {
+		view($outd.$dhash{'cvid'});
+	} elsif ($cmd eq 'ytd') {
+		my $url = shift;
+		$url //= nextu(\%dhash);
+		ytdl_dash($url, nextVid(\%dhash));
+	}
+	untie %dhash;
 }
 
 unless (caller) {
