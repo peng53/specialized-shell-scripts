@@ -2,7 +2,7 @@
 d=/mnt/ramdisk/
 q=${d}mq
 q_h=${d}q_hist
-player_args='--pause --keep-open --really-quiet --autofit-smaller=480x360'
+player_args='--pause --keep-open --really-quiet'
 yt_def_args='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 resume=0
 
