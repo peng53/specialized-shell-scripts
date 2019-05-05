@@ -9,7 +9,7 @@ package FQ;
 
 our $outd = '/mnt/ramdisk/';
 our $qfile = $outd.'q.dbm';
-our @yt_args = qw(--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist);
+our @yt_args = qw(--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist --no-progress);
 our @player_args= qw(--pause --keep-open --really-quiet);
 our $MVID = 5;
 
@@ -21,19 +21,13 @@ sub view {
 
 sub ytdl_get {
 	my %args = @_;
-	print "\nDownloading at quality = $args{fcode}, speed $args{speed}\n";
-	system("youtube-dl @yt_args -r $args{speed} -f $args{fcode} -o $args{out} $args{url} & ");
-	print "\n";
-	#print `youtube-dl $yt_args -r $args{speed} -f $args{fcode} '$args{url}' -o $args{out} &`;
+	print "Downloading at quality = $args{fcode}, speed $args{speed}\n";
+	system("youtube-dl @yt_args -r $args{speed} -f $args{fcode} -o $args{out} $args{url} >> ${outd}out.log &");
 }
 
 sub ytdl_dash {
 	my $url = shift or die 'Need URL!';
 	my $vid = shift or die 'Need output file!';
-	if (-e $vid) {
-		unlink($vid);
-		unlink($vid.'aud') if -e $vid.'aud';
-	}
 	ytdl_get((
 		speed => '32K',
 		fcode => '242',
@@ -42,7 +36,6 @@ sub ytdl_dash {
 	));
 	print "Waiting 10 secs to download audio..\n";
 	sleep 10;
-	push(@yt_args,' -q');
 	ytdl_get((
 		speed => '32K',
 		fcode => '250',
@@ -98,8 +91,22 @@ sub main {
 		view($outd.$dhash{'cvid'});
 	} elsif ($cmd eq 'ytd') {
 		my $url = shift;
+		my $vid;
+		if ($url eq 'r'){
+			$url = shift;
+			$vid = $outd.$dhash{'cvid'};
+			print "Resuming download..\n";
+		} else {
+			$vid = nextVid(\%dhash);
+			if (-e $vid) {
+				unlink($vid);
+				unlink($vid.'aud') if -e $vid.'aud';
+			}
+		}
 		$url //= nextu(\%dhash);
-		ytdl_dash($url, nextVid(\%dhash));
+		ytdl_dash($url, $vid);
+	} elsif ($cmd eq 'see') {
+		CORE::say join("\n", @{DQueue::readOut(\%dhash)});
 	}
 	untie %dhash;
 }
