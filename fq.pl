@@ -22,7 +22,7 @@ sub view {
 sub ytdl_get {
 	my %args = @_;
 	print "Downloading at quality = $args{fcode}, speed $args{speed}\n";
-	system("youtube-dl @yt_args -r $args{speed} -f $args{fcode} -o $args{out} $args{url} >> ${outd}out.log &");
+	system("youtube-dl @yt_args -r $args{speed} -f $args{fcode} -o $args{out} $args{url} >> ${outd}out.log 2>&1 &");
 }
 
 sub ytdl_dash {
@@ -46,7 +46,6 @@ sub ytdl_dash {
 	sleep 20;
 	view($vid);
 }
-
 
 sub add {
 	my $hash = shift;
@@ -73,8 +72,6 @@ sub initDBM {
 	}
 }
 
-
-
 sub nextVid {
 	my $hash = shift;
 	my $vid = $$hash{'cvid'};
@@ -92,10 +89,10 @@ sub main {
 	} elsif ($cmd eq 'view') {
 		view($outd.$dhash{'cvid'});
 	} elsif ($cmd eq 'ytd') {
-		my $url = shift;
+		my $url = shift // nextu(\%dhash);
 		my $vid;
 		if ($url eq 'r'){
-			$url = shift;
+			$url = shift // nextu(\%dhash);
 			$vid = $outd.$dhash{'cvid'};
 			print "Resuming download..\n";
 		} else {
@@ -105,10 +102,12 @@ sub main {
 				unlink($vid.'aud') if -e $vid.'aud';
 			}
 		}
-		$url //= nextu(\%dhash);
+		#$url //= nextu(\%dhash);
 		ytdl_dash($url, $vid);
 	} elsif ($cmd eq 'see') {
 		CORE::say join("\n", @{DQueue::readOut(\%dhash)});
+	} elsif ($cmd eq 'qua') {
+		print "$ENV{'quality'} $ENV{'speed'} $ENV{'aquality'}\n";
 	}
 	untie %dhash;
 }
