@@ -112,6 +112,10 @@ then
 			nx KEEP
 			echo $url
 		;;
+		get)
+			nx
+			echo $url
+		;;
 		fls)
 			> $q
 			echo 'Queue flushed.'
