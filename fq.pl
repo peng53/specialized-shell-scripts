@@ -47,9 +47,10 @@ sub ytdl_dash {
 	view($vid);
 }
 
+
 sub add {
 	my $hash = shift;
-	my $url = shift;
+	my $url = shift or die 'No Url Arg Given.';
 	my $old = DQueue::add($hash,$url);
 	print "Overwritten: $old\n" if $old;
 	print "Added url: $url\n";
@@ -72,6 +73,8 @@ sub initDBM {
 	}
 }
 
+
+
 sub nextVid {
 	my $hash = shift;
 	my $vid = $$hash{'cvid'};
@@ -85,8 +88,7 @@ sub main {
 	FQ::initDBM(\%dhash);
 	my $cmd = shift or die 'No Cmd Arg Given.';
 	if ($cmd eq 'add') {
-		my $url = shift or die 'No Url Arg Given.';
-		FQ::add(\%dhash,$url);
+		FQ::add(\%dhash,shift);
 	} elsif ($cmd eq 'view') {
 		view($outd.$dhash{'cvid'});
 	} elsif ($cmd eq 'ytd') {
