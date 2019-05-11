@@ -36,14 +36,17 @@ sub ytdl_dash {
 	));
 	print "Waiting 10 secs to download audio..\n";
 	sleep 10;
+	die 'Failed to get video.' if ! -s $vid;
 	ytdl_get((
 		speed => '32K',
 		fcode => '250',
 		url => $url,
 		out => $vid.'aud'
 	));
-	print "Waiting 20 secs to play..\n";
-	sleep 20;
+	print "Waiting 10 secs to play..\n";
+	sleep 10;
+	die 'Failed to get audio.' if ! -s $vid.'aud';
+	sleep 10;
 	view($vid);
 }
 
