@@ -1,21 +1,49 @@
 #!/bin/perl
-
 use strict;
 use warnings;
 
-#my $url=shift;
-## lines are lines output by calling `youtube-dl -F $url`
-## its using 't' ATM which should cache from the above cmd
-## for testing
-my @lines = `cat /mnt/ramdisk/t`;
-#print @lines;
-my $fmt = shift or die;
-my $res = shift or die;
-my $abr = shift or die;
-foreach (@lines) {
-	chomp;
-	print $_, "\n" if /\Q$fmt\E\s+\d+x\d+\s+\Q$res\Ep/;
-	print $_, "\n" if /DASH audio\s+\Q$abr\Ek/;
-	#DASH audio[[:space:]]+${abr}k" t
+package YT_DL_G;
 
+sub ytFormats {
+	# Gets all possible formats for an url.
+	my $url = shift or die 'Need Url to process';
+	my @lines = `youtube-dl -F $url 2>/dev/null`;
+	return \@lines;
+}
+
+sub closeABR {
+	# Assumes output orders audio formats in bitrate ascending..
+	my $lines = shift or die 'Need lines to process';
+	my $abr = shift or die 'Need ABR to check';
+	my $best = '';
+	foreach (@$lines) {
+		if (/^(\w+).+DASH audio\s+(\w+)k/) {
+			return $best if $2>$abr;
+			$best = $1;
+		}
+	}
+	return $best;
+}
+
+sub hasRes {
+	# Will only return exact match.
+	my $lines = shift or die 'Need lines to process';
+	my $res = shift or die 'Need RES to check';
+	my $fmt = shift // 'mp4';
+	foreach (@$lines) {
+		return $1 if /^(\w+)\s+\Q$fmt\E\s+\w+\s+\Q$res\Ep/;
+	}
+	return '';
+}
+
+unless (caller) {
+	my $url = shift or die 'No url was given.';
+	my $lines = ytFormats($url);
+	# Defaults unless 'res fmt abr' are given.
+	# Only takes that order.
+	my $res = shift // '240';
+	my $fmt = shift // 'mp4';
+	my $abr = shift // '90';
+	print "Resolution ${res}p as ${fmt}:", hasRes($lines, $res, $fmt), "\n";
+	print "Audio was bitrate of <${abr}:", closeABR($lines, $abr), "\n";
 }
