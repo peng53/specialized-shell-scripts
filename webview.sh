@@ -4,7 +4,7 @@
 #cwd=`dirname $0`
 case "$1" in
 	*.jpg|*.jpeg|*.png|*.gif) # image exts
-		feh -x -k -q $1
+		feh -x -q $1
 	;;
 	*.mp4|*.avi|*.flv) # video exts
 		mpv --pause --keep-open --really-quiet $1
