@@ -77,7 +77,7 @@ youtube_dash(){
 	yt_def_args='-q '$yt_def_args
 	# Next call to youtube_f_get is quiet
 	printf '\n'
-	youtube_f_get ${aquality=250} ${speed} aud
+	youtube_f_get ${aquality=250} ${aspeed=16K} aud
 	sleep 20
 	hist_add $url
 	view_file
@@ -137,7 +137,7 @@ then
 			# (resume-able)
 			shift
 			need_resume $1 && shift
-			set_url $@
+			set_url_ax $@
 			youtube_dash
 		;;
 		sls)
