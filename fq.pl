@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 require '../failure/pl/dqueue.pl';
+require './yt_dl_g.pl';
 
 package FQ;
 
@@ -28,24 +29,36 @@ sub ytdl_get {
 sub ytdl_dash {
 	my $url = shift or die 'Need URL!';
 	my $vid = shift or die 'Need output file!';
+
+	my $ytLines = YT_DL_G::ytFormats($url);
+
+	my $vres = '240';
+	my $vfmt = 'mp4';
+	$vres = YT_DL_G::hasRes($ytLines, $vres, $vfmt);
+
+	my $abit = '90';
+	$abit = YT_DL_G::closeABR($ytLines, $abit);
+
+	die 'Requested res/bitrate not available.' if (length $vres == 0 or length $abit == 0);
+
 	ytdl_get((
 		speed => '32K',
-		fcode => '242',
+		fcode => $vres,
 		url => $url,
 		out => $vid
 	));
 	print "Waiting 10 secs to download audio..\n";
 	sleep 10;
-	die 'Failed to get video.' if ! -s $vid;
+	die 'Failed to get video.' unless -s $vid;
 	ytdl_get((
-		speed => '32K',
-		fcode => '250',
+		speed => '16K',
+		fcode => $abit,
 		url => $url,
 		out => $vid.'aud'
 	));
 	print "Waiting 10 secs to play..\n";
 	sleep 10;
-	die 'Failed to get audio.' if ! -s $vid.'aud';
+	die 'Failed to get audio.' unless -s $vid.'aud';
 	sleep 10;
 	view($vid);
 }
