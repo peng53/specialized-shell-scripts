@@ -64,15 +64,15 @@ overwrite_f(){
 }
 youtube_f_get(){
 	# Uses $url $resume
-	# Args are: 1-quality 2-speed 3-suffix
+	# Args are 1-fmt 2-speed 3-suffix
 	[ $resume -eq 0 ] && overwrite_f 1${3} 0${3}
-	echo 'Downloading at f'$1 'and s =' $2
+	echo 'Downloading format:' $1 'and s =' $2
 	youtube-dl $yt_def_args -r $2 -f $1 $url -o ${d}1${3} &
 }
 youtube_dash(){
 	# Downloads both video and audio dash versions.
 	# Uses $url $resume
-	youtube_f_get ${quality=242} ${speed=32K}
+	youtube_f_get 'bestvideo[height<='${vres=240}'][ext=mp4]' ${speed=32K}
 	sleep 10
 	if [ ! -s ${d}1 ]
 	then
@@ -82,7 +82,7 @@ youtube_dash(){
 	yt_def_args='-q '$yt_def_args
 	# Next call to youtube_f_get is quiet
 	printf '\n'
-	youtube_f_get ${aquality=250} ${aspeed=16K} aud
+	youtube_f_get 'bestaudio[abr<='${abr=85}']' ${aspeed=32K} aud
 	sleep 20
 	hist_add $url
 	view_file
