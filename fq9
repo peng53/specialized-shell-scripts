@@ -74,6 +74,11 @@ youtube_dash(){
 	# Uses $url $resume
 	youtube_f_get ${quality=242} ${speed=32K}
 	sleep 10
+	if [ ! -s ${d}1 ]
+	then
+		echo 'Could not get video data.'
+		exit 1
+	fi
 	yt_def_args='-q '$yt_def_args
 	# Next call to youtube_f_get is quiet
 	printf '\n'
