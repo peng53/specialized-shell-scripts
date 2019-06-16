@@ -29,9 +29,9 @@ sub ytdl_get {
 sub ytdl_dash {
 	my $url = shift;
 	my $vid = shift;
-	my $vres = 240;
-	my $vfmt = 'webm';
-	my $abit = 80;
+	my $vres = $ENV{'quality'} // 240;
+	my $vfmt = $ENV{'vfmt'} // 'webm';
+	my $abit = $ENV{'abr'} // 80;
 	my $ytLines = YT_DL_G::ytFormats($url);
 
 	$vres = YT_DL_G::hasRes($ytLines, $vres, $vfmt);
@@ -62,7 +62,7 @@ sub ytdl_dash {
 sub streamlink_get {
 	my $url = shift;
 	my $vid = shift;
-	my $res = '240p';
+	my $res = $ENV{'quality'}.'p' // '240p';
 	print "Downloading with streamlink\n";
 	system("streamlink $url $res -o $vid >> ${outd}out.log 2>&1 &");
 	return $vid;
@@ -121,8 +121,6 @@ sub main {
 		view($outd.$dhash{'cvid'});
 	} elsif ($cmd eq 'see') {
 		print join("\n", @{DQueue::readOut(\%dhash)}), "\n";
-	} elsif ($cmd eq 'qua') {
-		print "$ENV{'quality'} $ENV{'speed'} $ENV{'aquality'}\n";
 	} elsif ($cmd eq 'go') {
 		my $url = shift // nextu(\%dhash);
 		my $vid;
