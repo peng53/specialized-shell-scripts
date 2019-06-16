@@ -27,40 +27,45 @@ sub ytdl_get {
 }
 
 sub ytdl_dash {
-	my $url = shift or die 'Need URL!';
-	my $vid = shift or die 'Need output file!';
-
+	my $url = shift;
+	my $vid = shift;
+	my $vres = 240;
+	my $vfmt = 'webm';
+	my $abit = 80;
 	my $ytLines = YT_DL_G::ytFormats($url);
 
-	my $vres = '240';
-	my $vfmt = 'mp4';
 	$vres = YT_DL_G::hasRes($ytLines, $vres, $vfmt);
-
-	my $abit = '90';
 	$abit = YT_DL_G::closeABR($ytLines, $abit);
 
-	die 'Requested res/bitrate not available.' if (length $vres == 0 or length $abit == 0);
+	if (length $vres == 0 or length $abit == 0) {
+		print "Requested res/bitrate not available.\n";
+		return;
+	}
 
 	ytdl_get((
-		speed => '32K',
+		speed => '64K',
 		fcode => $vres,
 		url => $url,
 		out => $vid
 	));
 	print "Waiting 10 secs to download audio..\n";
 	sleep 10;
-	die 'Failed to get video.' unless -s $vid;
 	ytdl_get((
-		speed => '16K',
+		speed => '32K',
 		fcode => $abit,
 		url => $url,
 		out => $vid.'aud'
 	));
-	print "Waiting 10 secs to play..\n";
-	sleep 10;
-	die 'Failed to get audio.' unless -s $vid.'aud';
-	sleep 10;
-	view($vid);
+	return $vid;
+}
+
+sub streamlink_get {
+	my $url = shift;
+	my $vid = shift;
+	my $res = '240p';
+	print "Downloading with streamlink\n";
+	system("streamlink $url $res -o $vid >> ${outd}out.log 2>&1 &");
+	return $vid;
 }
 
 sub add {
@@ -95,6 +100,16 @@ sub nextVid {
 	return $outd.$vid;
 }
 
+sub deleteCached {
+	# Deletes vid (& audio) if it exists
+	my $vid = shift;
+	if (-e $vid) {
+		unlink($vid);
+		unlink($vid.'aud') if -e $vid.'aud';
+	}
+	return $vid;
+}
+
 sub main {
 	my %dhash;
 	DQueue::loadIt(\%dhash, $qfile);
@@ -104,7 +119,11 @@ sub main {
 		FQ::add(\%dhash,shift);
 	} elsif ($cmd eq 'view') {
 		view($outd.$dhash{'cvid'});
-	} elsif ($cmd eq 'ytd') {
+	} elsif ($cmd eq 'see') {
+		print join("\n", @{DQueue::readOut(\%dhash)}), "\n";
+	} elsif ($cmd eq 'qua') {
+		print "$ENV{'quality'} $ENV{'speed'} $ENV{'aquality'}\n";
+	} elsif ($cmd eq 'go') {
 		my $url = shift // nextu(\%dhash);
 		my $vid;
 		if ($url eq 'r'){
@@ -112,18 +131,17 @@ sub main {
 			$vid = $outd.$dhash{'cvid'};
 			print "Resuming download..\n";
 		} else {
-			$vid = nextVid(\%dhash);
-			if (-e $vid) {
-				unlink($vid);
-				unlink($vid.'aud') if -e $vid.'aud';
-			}
+			$vid = deleteCached(nextVid(\%dhash));
 		}
-		#$url //= nextu(\%dhash);
-		ytdl_dash($url, $vid);
-	} elsif ($cmd eq 'see') {
-		CORE::say join("\n", @{DQueue::readOut(\%dhash)});
-	} elsif ($cmd eq 'qua') {
-		print "$ENV{'quality'} $ENV{'speed'} $ENV{'aquality'}\n";
+		my $dl;
+		if ($url =~ /\.youtube\.com/){
+			$dl = ytdl_dash($url, $vid)
+		} elsif ($url =~ /\.crunchyroll\.com/){
+			$dl = streamlink_get($url, $vid);
+		}
+		print "Waiting 10 secs to play..\n";
+		sleep 10;
+		view($vid) if $dl;
 	}
 	untie %dhash;
 }

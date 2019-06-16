@@ -41,9 +41,9 @@ unless (caller) {
 	my $lines = ytFormats($url);
 	# Defaults unless 'res fmt abr' are given.
 	# Only takes that order.
-	my $res = shift // '240';
+	my $res = shift // 240;
 	my $fmt = shift // 'mp4';
-	my $abr = shift // '90';
+	my $abr = shift // 90;
 	print "Resolution ${res}p as ${fmt}:", hasRes($lines, $res, $fmt), "\n";
 	print "Audio was bitrate of <${abr}:", closeABR($lines, $abr), "\n";
 }
