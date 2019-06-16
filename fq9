@@ -72,7 +72,7 @@ youtube_f_get(){
 youtube_dash(){
 	# Downloads both video and audio dash versions.
 	# Uses $url $resume
-	youtube_f_get 'bestvideo[height<='${vres=240}'][ext=mp4]' ${speed=32K}
+	youtube_f_get 'bestvideo[height<='${vres=240}'][ext=webm]' ${speed=32K}
 	sleep 10
 	if [ ! -s ${d}1 ]
 	then
@@ -120,6 +120,7 @@ then
 		get)
 			nx
 			echo $url
+			hist_add $url
 		;;
 		fls)
 			> $q

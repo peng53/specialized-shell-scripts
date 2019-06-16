@@ -13,8 +13,7 @@ def binary_exists(bin_path: str,PATH: List[str] = []) -> bool:
 		return os.path.isfile(os.path.expanduser(bin_path))
 	else:
 		if not PATH:
-			for f in os.environ["PATH"].split(os.pathsep):
-				PATH.append(f)
+			PATH += (f for f in os.environ["PATH"].split(os.pathsep))
 		return any(bin_path in os.listdir(f) for f in PATH)
 
 player = "mpv" # type: str
@@ -34,7 +33,7 @@ def_env = {
 	"aquality": 80,
 	"speed": float(32000),
 	"slquality":"240p",
-} # type: Dict[str,str]
+} # type: Dict[str]
 
 if __name__=="__main__":
 	for bin_path in [player,yt_dl,sl_bin]:
@@ -61,8 +60,7 @@ def get_envvar(varname: str) -> str:
 def top(F) -> str:
 	# F is an file in 'r' mode.
 	# get first line from F. if none, return None.
-	l = F.readline() # type: str
-	return l
+	return F.readline()
 
 def remove_top(f_name: str,f_dir: str) -> str:
 	# f_name and f_dir are just strs
@@ -96,10 +94,8 @@ def add_bottom(f_name: str,f_dir: str,line: str) -> None:
 			f.write(l+'\n')
 
 def view_vid(v_dir: str,v_name: str, a_name: str = None) -> None:
-	# watch the video that was downloaded.
-	# uses global 'player' and 'player_args'
-	# on linux, this blocks the terminal
-	# returns the 'return code'
+	"""	Views download media files using global var player and
+		player args. Takes a_name optionally as audio track."""
 	vid = os.path.join(v_dir,v_name)
 	if os.path.exists(vid):
 		cmd = [player,vid]+player_args
@@ -148,10 +144,9 @@ def case_flush(args: List[str]) -> None:
 
 def case_add(args: List[str]) -> None:
 	"""	Adds item to queue."""
-	if len(args)>1:
-		url = args[1] # type: str
-		if url:
-			add_bottom(q_name,tmp_dir,url)
+	if len(args)>1 and len(args[1])>0:
+		url = args[1]
+		add_bottom(q_name,tmp_dir,url)
 	else:
 		print("URL was blank.")
 
@@ -195,14 +190,18 @@ try:
 			"noplaylist": True,
 			"call_home": False,
 			"outtmpl": os.path.join(v_dir,v_name),
-			"tmpfilename": os.path.join(v_dir,v_name),
+			# "tmpfilename": os.path.join(v_dir,v_name),
 			"ratelimit": get_envvar("speed"),
 			"continuedl": True,
 			"nopart": True,
-			"quiet": False
+			"quiet": True
 		}
-		ydl = youtube_dl.YoutubeDL(args)
-		ydl.extract_info(url)
+		try:
+			ydl = youtube_dl.YoutubeDL(args)
+			ydl.extract_info(url)
+		except:
+			print("Failed to download completely")
+			#print(e)
 
 except ImportError:
 	def try_yt(url: str, dformat: str, v_dir: str,v_name: str='1') -> None:
@@ -210,7 +209,7 @@ except ImportError:
 		speed = get_envvar("speed") # type: str
 		cmd = [yt_dl,"-q","-f",dformat,"-r",speed,url,"-o",os.path.join(v_dir,v_name)]+yt_dl_args # type: List[str]
 		print("Downloading video quality={:s} at speed={:s}".format(dformat,speed))
-		Popen(cmd)
+		run(cmd)
 
 def case_go(args: List[str],resume: bool = False) -> None:
 	"""	Downloads next item in queue or supplied url from args.	"""
@@ -224,13 +223,11 @@ def case_go(args: List[str],resume: bool = False) -> None:
 		(url,yt_vfmt(get_envvar("quality"),'webm'), tmp_dir, "1")
 	)
 	vid.start()
-	#try_yt(url,yt_vfmt(get_envvar("quality"),'webm'), tmp_dir, "1") # vid
 	sleep(15)
 	aud = threading.Thread(target=try_yt, args=
 		(url,yt_afmt(get_envvar("aquality")), tmp_dir, "1aud")
 	)
 	aud.start()
-	#try_yt(url,yt_afmt(get_envvar("aquality")), tmp_dir, "1aud") # aud
 	sleep(10)
 	view_vid(tmp_dir,'1','1aud')
 	vid.join()
@@ -244,7 +241,7 @@ try:
 		choice = None
 		while (choice not in streams):
 			choice = input(':')
-			if len(choice) == 0:
+			if not choice:
 				return
 		return streams[choice]
 	def query_formats(url: str, quality: str):
@@ -278,8 +275,8 @@ def case_streamlink(args: List[str]) -> None:
 	quality = args[2] if len(args)>2 else get_envvar("slquality") # type: str
 	if not url or not quality:
 		print("URL or quality is required but missing.")
-		return
-	try_sl(url,quality)
+	else:
+		try_sl(url,quality)
 
 ops = {
 #keyword function req_args
