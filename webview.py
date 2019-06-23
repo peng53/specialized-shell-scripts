@@ -31,7 +31,8 @@ call_type = [
 	CallOption(
 		"image",
 		lambda p: matches_file_ext(p, ['.jpg','.jpeg','.png','.gif']),
-		"feh"),
+		"feh",
+                "--title image-viewer"),
 	CallOption(
 		"video",
 		lambda p: matches_file_ext(p, ['.mp4','.avi','.flv']),
