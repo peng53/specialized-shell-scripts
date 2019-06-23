@@ -1,21 +1,25 @@
 #!/bin/sh
 # Use: execute it for some shutdown options, locking before options
 # that can be reverted.
+echo $#
+if [ $# -lt 1 ]
+then
+	echo Usage: $(basename $0) option
+fi
 alias lock='xlock -fg white -bg black &'
-xmessage 'Power options' -buttons Cancel:0,Shutdown:1,Suspend:2,Hibernate:3,Lock:4 -default Cancel
-case $? in
-	1)
+case $1 in
+	1|shutdown|Shutdown)
 		sudo poweroff
 	;;
-	2)
+	2|suspend|Suspend)
 		lock
 		sudo pm-suspend
 	;;
-	3)
+	3|hibernate|Hibernate)
 		lock
 		sudo pm-hibernate
 	;;
-	4)
+	4|lock|Lock)
 		lock
 	;;
 	*)

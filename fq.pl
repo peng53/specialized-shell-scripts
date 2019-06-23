@@ -114,7 +114,7 @@ sub main {
 	my %dhash;
 	DQueue::loadIt(\%dhash, $qfile);
 	FQ::initDBM(\%dhash);
-	my $cmd = shift or die 'No Cmd Arg Given.';
+	my $cmd = shift // 'go';
 	if ($cmd eq 'add') {
 		FQ::add(\%dhash,shift);
 	} elsif ($cmd eq 'view') {
