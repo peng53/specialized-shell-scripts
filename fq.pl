@@ -62,9 +62,9 @@ sub ytdl_dash {
 sub streamlink_get {
 	my $url = shift;
 	my $vid = shift;
-	my $res = $ENV{'quality'}.'p' // '240p';
+	my $res = $ENV{'quality'} // '240';
 	print "Downloading with streamlink\n";
-	system("streamlink $url $res -o $vid >> ${outd}out.log 2>&1 &");
+	system("streamlink $url ${res}p -o $vid >> ${outd}out.log 2>&1 &");
 	return $vid;
 }
 
@@ -121,6 +121,9 @@ sub main {
 		view($outd.$dhash{'cvid'});
 	} elsif ($cmd eq 'see') {
 		print join("\n", @{DQueue::readOut(\%dhash)}), "\n";
+	} elsif ($cmd eq 'fls') {
+		DQueue::flush(\%dhash);
+		print "Queue flushed.\n";
 	} elsif ($cmd eq 'go') {
 		my $url = shift // nextu(\%dhash);
 		my $vid;
