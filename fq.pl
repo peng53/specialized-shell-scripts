@@ -3,8 +3,8 @@
 use strict;
 use warnings;
 
-require '../failure/pl/dqueue.pl';
-require './yt_dl_g.pl';
+require DQueue;
+require YTFormats;
 
 package FQ;
 
