@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-package YT_DL_G;
+package YTFormats;
 
 sub ytFormats {
 	# Gets all possible formats for an url.

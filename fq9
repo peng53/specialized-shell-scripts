@@ -67,12 +67,12 @@ youtube_f_get(){
 	# Args are 1-fmt 2-speed 3-suffix
 	[ $resume -eq 0 ] && overwrite_f 1${3} 0${3}
 	echo 'Downloading format:' $1 'and s =' $2
-	youtube-dl $yt_def_args -r $2 -f $1 $url -o ${d}1${3} &
+	youtube-dl $yt_def_args -r $2 -f $1 $url -o ${d}1${3} 2>> ${d}out.log &
 }
 youtube_dash(){
 	# Downloads both video and audio dash versions.
 	# Uses $url $resume
-	youtube_f_get 'bestvideo[height<='${vres=240}'][ext=webm]' ${speed=32K}
+	youtube_f_get 'bestvideo[height<='${vres=240}'][ext='${ext=webm}']' ${speed=32K}
 	sleep 10
 	if [ ! -s ${d}1 ]
 	then

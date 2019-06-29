@@ -4,4 +4,4 @@
 xmessage 'Power options' \
 	-buttons Cancel:cancel,Shutdown:1,Suspend:2,Hibernate:3,Lock:4\
 	-default Cancel
-sh shutdown.sh $?
+./shutdown.sh $?
