@@ -1,0 +1,87 @@
+# fq9man
+Manual pages for fq9.
+Ideally this should be updated everytime the use of fq9 changes.
+
+Primary commands (after fq9 itself):
+  add
+  top
+  get
+  fls
+  see
+  view
+  halt
+  hist
+  ytd
+  sls
+  sld
+
+If no primary command is given, fq9 will guess the service to use based on the
+URL, at the moment, it will detect youtube.com and crunchyroll.com and use
+ytd and sls as primary commands respectively.
+
+Additional arguments:
+  Some primary commands take more arguments to function. In most cases this is
+  the target URL (u) and whether to resume (r) a previous download. These will
+  be denoted below with the above symbols, any others will be explained. The
+  order of the arguments given matters. If optional, it will be denoted with
+  square brackets.
+  
+Oddities:
+  Some commands will have oddities (which will be eventually ironed out, but
+  will be documented until then) that affect its usage. They also will be given.
+  
+  add [(u)]
+    Adds url to queue, if (u) not given, xclip is used for it.
+    If 'hist' is given as the url, the history file is used instead.
+  
+  top
+    Prints the next item on the queue.
+  
+  get
+    Prints the next item on the queue while removing it.
+  
+  fls
+    Removes all items in the queue
+  
+  see
+    Prints all items in the queue.
+  
+  view
+    Plays last downloadeded. Specifically it plays ${d}/1 using ${d}/1aud as
+    the audio source if it exists.
+  
+  halt
+    Stops download process of the youtube-dl command. It kills all youtube-dl
+    processes, even ones not executed by fq9
+  
+  hist
+    Prints all items in the history.
+  
+  ytd [(r)] [(u)]
+    Downloads and plays url from either argument or xclip. If 'r' is present,
+    resume last download with url. The download will resume on the same file
+    regardless of whether the origin urls match. ytd uses exported variables:
+      vres: desired max video height,
+      speed: video download speed,
+      abr: desired max audio bitrate,
+      aspeed: audio download speed.
+    
+    If the variables are set, there are (very low quality) defaults set.
+    After 10 seconds of downloading, fq9 will attempt to play the files if it
+    is 'okay enough'. There is a chance that either the video/audio download
+    will fail: in this case, youtube-dl will not stopped and will need to be
+    halted manually with the 'halt' primary command. This happens mostly when
+    either audio or video options don't match what is available (new videos).
+  
+  sls [(u)]
+    Streams the url with streamlink. Quality/resolution depends on:
+      squality: the video height
+    This command will not download to disk and closing the resulting player
+    may require restarting the stream progress from the start. It is possible
+    to seek in the player though.
+  
+  sld [(r)] [(u)]
+    Downloads the url, uses the argument or THE QUEUE. Quality/resolution
+    depends on:
+      squality: the video height
+    This option does download to disk. (to ${d}/1)
