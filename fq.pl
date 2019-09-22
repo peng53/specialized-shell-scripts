@@ -17,6 +17,7 @@ our $MVID = 5;
 sub view {
 	my $vid = shift;
 	my $dash = ( -e $vid.'aud' ) ? "--audio-file=${vid}aud" : '';
+	print "Playing file: ${vid}\n";
 	system("mpv @player_args $vid $dash &");
 }
 
@@ -32,10 +33,10 @@ sub ytdl_dash {
 	my $vres = $ENV{'quality'} // 240;
 	my $vfmt = $ENV{'vfmt'} // 'webm';
 	my $abit = $ENV{'abr'} // 80;
-	my $ytLines = YT_DL_G::ytFormats($url);
+	my $ytLines = YTFormats::ytFormats($url);
 
-	$vres = YT_DL_G::hasRes($ytLines, $vres, $vfmt);
-	$abit = YT_DL_G::closeABR($ytLines, $abit);
+	$vres = YTFormats::hasRes($ytLines, $vres, $vfmt);
+	$abit = YTFormats::closeABR($ytLines, $abit);
 
 	if (length $vres == 0 or length $abit == 0) {
 		print "Requested res/bitrate not available.\n";
@@ -118,7 +119,9 @@ sub main {
 	if ($cmd eq 'add') {
 		FQ::add(\%dhash,shift);
 	} elsif ($cmd eq 'view') {
-		view($outd.$dhash{'cvid'});
+		my $n = shift // $dhash{'cvid'};
+		print "${outd}${n}\n";
+		view($outd.$n);
 	} elsif ($cmd eq 'see') {
 		print join("\n", @{DQueue::readOut(\%dhash)}), "\n";
 	} elsif ($cmd eq 'fls') {
