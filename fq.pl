@@ -42,7 +42,7 @@ sub ytdl_dash {
 		print "Requested res/bitrate not available.\n";
 		return;
 	}
-
+	print "Downloading formats: ${vres} and ${abit} to ${vid}\n";
 	ytdl_get((
 		speed => '64K',
 		fcode => $vres,
@@ -63,8 +63,8 @@ sub ytdl_dash {
 sub streamlink_get {
 	my $url = shift;
 	my $vid = shift;
-	my $res = $ENV{'quality'} // '240';
-	print "Downloading with streamlink\n";
+	my $res = $ENV{'quality'} // 240;
+	print "Downloading quality ${res} with streamlink to ${vid}\n";
 	system("streamlink $url ${res}p -o $vid >> ${outd}out.log 2>&1 &");
 	return $vid;
 }
@@ -117,17 +117,22 @@ sub main {
 	FQ::initDBM(\%dhash);
 	my $cmd = shift // 'go';
 	if ($cmd eq 'add') {
+		# Enqueues item to queue
 		FQ::add(\%dhash,shift);
 	} elsif ($cmd eq 'view') {
-		my $n = shift // $dhash{'cvid'};
-		print "${outd}${n}\n";
-		view($outd.$n);
+		# Play either the requested video or last downloaded
+		my $vidnum = shift // $dhash{'cvid'};
+		print "Playing ${outd}${vidnum}\n";
+		view($outd.$vidnum);
 	} elsif ($cmd eq 'see') {
+		# Prints all entries in queue
 		print join("\n", @{DQueue::readOut(\%dhash)}), "\n";
 	} elsif ($cmd eq 'fls') {
+		# Clear queue
 		DQueue::flush(\%dhash);
 		print "Queue flushed.\n";
 	} elsif ($cmd eq 'go') {
+		# Downloads requested or next item
 		my $url = shift // nextu(\%dhash);
 		my $vid;
 		if ($url eq 'r'){
@@ -138,14 +143,19 @@ sub main {
 			$vid = deleteCached(nextVid(\%dhash));
 		}
 		my $dl;
+		print "Going to write to ${vid}\n";
 		if ($url =~ /\.youtube\.com/){
 			$dl = ytdl_dash($url, $vid)
 		} elsif ($url =~ /\.crunchyroll\.com/){
 			$dl = streamlink_get($url, $vid);
 		}
-		print "Waiting 10 secs to play..\n";
-		sleep 10;
-		view($vid) if $dl;
+		if ($dl){
+			print "Waiting 10 secs to play ${vid}\n";
+			sleep 10;
+			view($vid);
+		}
+	} else {
+		print "Cmd not found: ${cmd}\n";
 	}
 	untie %dhash;
 }
