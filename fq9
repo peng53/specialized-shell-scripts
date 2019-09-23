@@ -6,6 +6,20 @@ playerDefaultArgs='--pause --keep-open --really-quiet'
 youtubeDlDefaultArgs='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 tryResume=0
 
+videoDownloadHandler(){
+	case "$URL" in
+		*.youtube.com/watch?v=*)
+			youtube_dash
+			view_file
+		;;
+		*.crunchyroll.com/*)
+			streamlink_stream
+		;;
+		*)
+			echo 'No url matches'
+		;;
+	esac
+}
 
 addToHist(){
 	if [ -s $urlQueueHist ]
@@ -85,7 +99,6 @@ youtube_dash(){
 	printf '\n'
 	youtube_f_get 'bestaudio[abr<='${abr=85}']' ${aspeed=32K} aud
 	sleep 20
-	view_file
 }
 streamlink_dl(){
 	# Uses $: URL tryResume
@@ -144,12 +157,7 @@ then
 			shift
 			setTryResume $1 && shift
 			set_url_ax $@
-			youtube_dash
-		;;
-		sls)
-			shift
-			set_url_ax $@
-			streamlink_stream
+			youtube_dash && view_file
 		;;
 		sld)
 			# (resume-able)
@@ -157,6 +165,11 @@ then
 			setTryResume $1 && shift
 			set_url $@
 			streamlink_dl && view_file
+		;;
+		sls)
+			shift
+			set_url_ax $@
+			streamlink_stream
 		;;
 		*)
 			echo 'Arguments not recognized'
@@ -167,12 +180,5 @@ else
 	#echo Options were: $@
 	set_url $@
 	# Will only grab from queue since $1 will be blank.
-	case "$URL" in
-		*.youtube.com/watch?v=*)
-			youtube_dash
-		;;
-		*.crunchyroll.com/*)
-			streamlink_stream
-		;;
-	esac
+	videoDownloadHandler
 fi
