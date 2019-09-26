@@ -9,104 +9,81 @@ youtubeDlDefaultArgs='--no-part --youtube-skip-dash-manifest --no-call-home --no
 
 downloadMedia(){
 	url=$1
-	r=1
+	echo 'Downloading' $url
+	[ $tryResume -eq 1 ] && echo 'Resuming from previous.'
 	case "$url" in
 		*.youtube.com/watch?v=*)
-			r=$(downloadYoutube $url)
+			downloadYoutube $url
 		;;
 		*.crunchyroll.com/*)
-			r=$(downloadStreamlink $url)
+			downloadStreamlink $url
 		;;
 		*)
 			echo 'No url matches'
 		;;
 	esac
-	if [ $r -eq 0 ]
-	then
-		viewMedia
-	fi
 }
 overwriteVidBuf(){
 	# Overwrites filename 2nd arg at ${tempDirectory} with 1st arg
 	[ -f $1 ] && mv -f $1 $2
 }
-viewMedia(){
-	tempDirectory=/mnt/ramdisk/
-	[ -s ${tempDirectory}1aud ] && dash=--audio-file=${tempDirectory}1aud
-	[ -s ${tempDirectory}1 ] && mpv $playerDefaultArgs ${tempDirectory}1 $dash &
-}
 downloadYoutube(){
-	url=$1
-	youtube-dl -F $url > /mnt/ramdisk/formats
-	getYoutubeFmts /mnt/ramdisk/formats
+	local url=$1
+	youtube-dl -F $url > ${tempDirectory}formats
+	getYoutubeFmts ${tempDirectory}formats
 	if [ $? -eq 0 ]
 	then
-		downloadYoutubeFmt $url $vfmt /mnt/ramdisk/1
+		downloadYoutubeFmt $url $vfmt ${tempDirectory}1
 		sleep 10
-		downloadYoutubeFmt $url $afmt /mnt/ramdisk/1aud
+		downloadYoutubeFmt $url $afmt ${tempDirectory}1aud
 		sleep 20
-		return 0
 	fi
-	return 1
 }
 downloadYoutubeFmt(){
-	url=$1
-	fmt=$2
-	to=$3
+	local url=$1 fmt=$2 to=$3
 	[ $tryResume -eq 0 ] && overwriteVidBuf $to ${to}old
-	youtube-dl $youtubeDlDefaultArgs -r ${speed=32K} -f $fmt $url -o $to &
+	echo "Download started for fmt $fmt"
+	youtube-dl -q $youtubeDlDefaultArgs -r ${speed=32K} -f $fmt $url -o $to &
 }
 
 getYoutubeFmts(){
-	lines=$1
+	local lines=$1
 	vfmt=$(findVideoFmtCode ${ext='webm'} ${vres=240} $lines)
 	afmt=$(findAudioFmtCode ${abr=80} $lines)
 	if [ $vfmt -eq 0 ]
 	then
-		echo 'Video not avaliable in resolution.'
+		echo 'Video not availiable in resolution.'
 		return 1
 	fi
 	if [ $afmt -eq 0 ]
 	then
-		echo 'Audio not avaliable in bitrate.'
+		echo 'Audio not availiable in bitrate.'
 		return 1
 	fi
 	return 0
 }
 findAudioFmtCode(){
-	#youtube-dl -F 'https://www.youtube.com/watch?v=dLSVUfUEbyI' > /mnt/ramdisk/formats
-	best=0
-	desired=$1
-	lines=$2
+	local best=0 desired=$1 lines=$2 code=0 line
 	while IFS= read -r line
 	do
-		abr=$(echo $line | egrep 'DASH audio\s+[0-9]+k' -o | egrep '[0-9]+' -o)
+		local abr=$(echo $line | egrep 'DASH audio\s+[0-9]+k' -o | egrep '[0-9]+' -o)
 		if [ -n "$abr" ] && [ "$abr" -le "$desired" ] && [ $abr -gt $best ]
 		then
 			best=$abr
 			code=$(echo $line | cut -f 1 -d ' ')
 		fi
 	done < $lines
-	if [ "$best" -eq 0 ]
-	then
-		echo 0
-	else
-		echo $code
-	fi
+	echo $code
 }
 
 findVideoFmtCode(){
-	bestRes=0
-	bestFmt=0
-	desiredCodec=$1
-	desiredVRes=$2
-	lines=$3
+	local bestRes=0 bestFmt=0 desiredCodec=$1 desiredVRes=$2 lines=$3
 	while IFS= read -r line
 	do
 		echo $line | egrep $desiredCodec'\s+[0-9]' -o > /dev/null
 		if [ $? -eq 0 ]
 		then
-			res=$(echo $line | egrep '[0-9]+x[0-9]+\s+[0-9]+p' -o | tr -s ' ' | cut -d ' ' -f 2)
+			local res=$(echo $line | egrep '[0-9]+x[0-9]+\s+[0-9]+p' -o | tr -s ' ' | cut -d ' ' -f 2)
 			if [ -n "$res" ]
 			then
 				res=$(echo $res | egrep '[0-9]+' -o)
@@ -124,7 +101,11 @@ getQueueUrl(){
 	read -r url < $urlQueue
 	[ $# -eq 0 ] && sed -i '1d;/^$/d' $urlQueue
 }
-
+viewMedia(){
+	echo Viewing media
+	[ -s ${tempDirectory}1aud ] && dash=--audio-file=${tempDirectory}1aud
+	[ -s ${tempDirectory}1 ] && mpv $playerDefaultArgs ${tempDirectory}1 $dash &
+}
 if [ $# -eq 0 ]
 then
 	# get url from queue, no resume
@@ -135,6 +116,7 @@ else
 	case "$cmd" in
 		resume)
 			tryResume=1
+			
 			if [ $# -gt 1 ]
 			then
 				url=$2
@@ -168,7 +150,7 @@ else
 fi
 if [ "$cmd" = 'dl' ]
 then
-	echo Downloading $url
-	#downloadMedia $url
+	downloadMedia $url
+	viewMedia
 fi
 
