@@ -20,9 +20,12 @@ downloadMedia(){
 		;;
 		*)
 			echo 'No url matches'
+			return 1
 		;;
 	esac
+	return 0
 }
+
 downloadYoutube(){
 	local url=$1
 	youtube-dl -F $url > ${tempDirectory}formats
@@ -95,25 +98,57 @@ overwriteVidBuf(){
 	# Overwrites filename 2nd arg at ${tempDirectory} with 1st arg
 	[ -f $1 ] && mv -f $1 $2
 }
+
+addQueueUrl(){
+	[ -n "$1" ] && echo $1 >> $urlQueue
+}
+
 getQueueUrl(){
 	read -r url < $urlQueue
 }
 popQueueUrl(){
 	sed -i '1d;/^$/d' $urlQueue
 }
+
 viewMedia(){
 	echo Viewing media
 	[ -s ${tempDirectory}1aud ] && dash=--audio-file=${tempDirectory}1aud
 	[ -s ${tempDirectory}1 ] && mpv $playerDefaultArgs ${tempDirectory}1 $dash &
 }
+
+
+handleHist(){
+	case "$1" in
+		see|'')
+			cat $urlQueueHist
+		;;
+		add)
+			addQueueUrl $(getHistUrl)
+		;;
+		resume)
+			url=$(getHistUrl)
+			if [ -n "$url" ]
+			then
+				echo 'Resuming from history.'
+				tryResume=1
+				cmd='dl'
+			fi
+		;;
+	esac
+}
 getHistUrl(){
 	[ -s $urlQueueHist ] && echo $(tail -n 1 $urlQueueHist)
 }
+
+
 addToHist(){
+	[ -z "$1" ] && return
 	local last
 	[ -s $urlQueueHist ] && last=$(getHistUrl)
 	[ $last != $1 ] && echo $1 >> $urlQueueHist
 }
+
+
 cmd=$1
 case "$cmd" in
 	'')
@@ -136,16 +171,7 @@ case "$cmd" in
 		[ -n "$url" ] && cmd='dl'
 	;;
 	add)
-		if [ -n "$2" ]
-		then
-			if [ "$2" = 'hist' ]
-			then
-				url=$(getHistUrl)
-			else
-				url=$2
-			fi
-			echo $url >> $urlQueue
-		fi
+		addQueueUrl $2
 	;;
 	get)
 		getQueueUrl
@@ -165,6 +191,9 @@ case "$cmd" in
 	view)
 		viewMedia
 	;;
+	hist)
+		handleHist $2
+	;;
 	*)
 		url=$1
 		cmd='dl'
@@ -172,7 +201,7 @@ case "$cmd" in
 esac
 if [ "$cmd" = 'dl' ]
 then
-	downloadMedia $url
-	viewMedia
+	addToHist $url
+	downloadMedia $url && viewMedia
 fi
 
