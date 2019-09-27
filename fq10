@@ -1,14 +1,14 @@
 #!/bin/sh
 # fq10
-tempDirectory=/mnt/ramdisk/
-urlQueue=${tempDirectory}mq
+readonly tempDirectory=/mnt/ramdisk/
+readonly urlQueue=${tempDirectory}mq
+readonly urlQueueHist=${tempDirectory}q_hist
+readonly playerDefaultArgs='--pause --keep-open --really-quiet'
+readonly youtubeDlDefaultArgs='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 tryResume=0
-playerDefaultArgs='--pause --keep-open --really-quiet'
-youtubeDlDefaultArgs='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
-
 
 downloadMedia(){
-	url=$1
+	local url=$1
 	echo 'Downloading' $url
 	[ $tryResume -eq 1 ] && echo 'Resuming from previous.'
 	case "$url" in
@@ -23,10 +23,6 @@ downloadMedia(){
 		;;
 	esac
 }
-overwriteVidBuf(){
-	# Overwrites filename 2nd arg at ${tempDirectory} with 1st arg
-	[ -f $1 ] && mv -f $1 $2
-}
 downloadYoutube(){
 	local url=$1
 	youtube-dl -F $url > ${tempDirectory}formats
@@ -39,13 +35,6 @@ downloadYoutube(){
 		sleep 20
 	fi
 }
-downloadYoutubeFmt(){
-	local url=$1 fmt=$2 to=$3
-	[ $tryResume -eq 0 ] && overwriteVidBuf $to ${to}old
-	echo "Download started for fmt $fmt"
-	youtube-dl -q $youtubeDlDefaultArgs -r ${speed=32K} -f $fmt $url -o $to &
-}
-
 getYoutubeFmts(){
 	local lines=$1
 	vfmt=$(findVideoFmtCode ${ext='webm'} ${vres=240} $lines)
@@ -75,9 +64,8 @@ findAudioFmtCode(){
 	done < $lines
 	echo $code
 }
-
 findVideoFmtCode(){
-	local bestRes=0 bestFmt=0 desiredCodec=$1 desiredVRes=$2 lines=$3
+	local bestRes=0 bestFmt=0 desiredCodec=$1 desiredVRes=$2 lines=$3 line
 	while IFS= read -r line
 	do
 		echo $line | egrep $desiredCodec'\s+[0-9]' -o > /dev/null
@@ -97,57 +85,91 @@ findVideoFmtCode(){
 	done < $lines
 	echo $bestFmt
 }
+downloadYoutubeFmt(){
+	local url=$1 fmt=$2 to=$3
+	[ $tryResume -eq 0 ] && overwriteVidBuf $to ${to}old
+	echo "Download started for fmt $fmt"
+	youtube-dl -q $youtubeDlDefaultArgs -r ${speed=32K} -f $fmt $url -o $to &
+}
+overwriteVidBuf(){
+	# Overwrites filename 2nd arg at ${tempDirectory} with 1st arg
+	[ -f $1 ] && mv -f $1 $2
+}
 getQueueUrl(){
 	read -r url < $urlQueue
-	[ $# -eq 0 ] && sed -i '1d;/^$/d' $urlQueue
+}
+popQueueUrl(){
+	sed -i '1d;/^$/d' $urlQueue
 }
 viewMedia(){
 	echo Viewing media
 	[ -s ${tempDirectory}1aud ] && dash=--audio-file=${tempDirectory}1aud
 	[ -s ${tempDirectory}1 ] && mpv $playerDefaultArgs ${tempDirectory}1 $dash &
 }
-if [ $# -eq 0 ]
-then
-	# get url from queue, no resume
-	getQueueUrl
-	cmd=dl
-else
-	cmd=$1
-	case "$cmd" in
-		resume)
-			tryResume=1
-			
-			if [ $# -gt 1 ]
-			then
-				url=$2
-			else
-				getQueueUrl
-			fi
+getHistUrl(){
+	[ -s $urlQueueHist ] && echo $(tail -n 1 $urlQueueHist)
+}
+addToHist(){
+	local last
+	[ -s $urlQueueHist ] && last=$(getHistUrl)
+	[ $last != $1 ] && echo $1 >> $urlQueueHist
+}
+cmd=$1
+case "$cmd" in
+	'')
+		getQueueUrl
+		if [ -n "$url" ] 
+		then
+			popQueueUrl
 			cmd='dl'
-		;;
-		add)
-			echo $2 >> $urlQueue
-		;;
-		get)
+		fi
+	;;
+	resume)
+		tryResume=1
+		if [ $# -gt 1 ]
+		then
+			url=$2
+		else
 			getQueueUrl
-			echo $url
-		;;
-		top)
-			getQueueUrl KEEP
-			echo $URL
-		;;
-		flush)
-			> $urlQueue
-			echo 'Queue flushed.'
-		;;
-		see)
-			cat $urlQueue
-		;;
-		view)
-			viewMedia
-		;;
-	esac
-fi
+			[ -n "$url" ] && popQueueUrl
+		fi
+		[ -n "$url" ] && cmd='dl'
+	;;
+	add)
+		if [ -n "$2" ]
+		then
+			if [ "$2" = 'hist' ]
+			then
+				url=$(getHistUrl)
+			else
+				url=$2
+			fi
+			echo $url >> $urlQueue
+		fi
+	;;
+	get)
+		getQueueUrl
+		[ -n "$url" ] && popQueueUrl && echo $url
+	;;
+	top)
+		getQueueUrl
+		[ -n "$url" ] && echo $url
+	;;
+	flush)
+		> $urlQueue
+		echo 'Queue flushed.'
+	;;
+	see)
+		cat $urlQueue
+	;;
+	view)
+		viewMedia
+	;;
+	*)
+		url=$1
+		cmd='dl'
+	;;
+esac
 if [ "$cmd" = 'dl' ]
 then
 	downloadMedia $url
