@@ -26,6 +26,14 @@ downloadMedia(){
 	return 0
 }
 
+downloadStreamlink(){
+	local url=$1 to=${tempDirectory}1
+	[ $tryResume -eq 0 ] && overwriteVidBuf $to ${to}old
+	echo "Downloading at q = ${vres=240}p"
+	streamlink $url ${vres}p -o ${tempDirectory}1 &
+	sleep 30
+}
+
 downloadYoutube(){
 	local url=$1
 	youtube-dl -F $url > ${tempDirectory}formats
@@ -41,12 +49,12 @@ downloadYoutube(){
 getYoutubeFmts(){
 	local lines=$1
 	vfmt=$(findVideoFmtCode ${ext='webm'} ${vres=240} $lines)
-	afmt=$(findAudioFmtCode ${abr=80} $lines)
 	if [ $vfmt -eq 0 ]
 	then
 		echo 'Video not availiable in resolution.'
 		return 1
 	fi
+	afmt=$(findAudioFmtCode ${abr=80} $lines)
 	if [ $afmt -eq 0 ]
 	then
 		echo 'Audio not availiable in bitrate.'
@@ -104,7 +112,9 @@ addQueueUrl(){
 }
 
 getQueueUrl(){
+	local url
 	read -r url < $urlQueue
+	echo $url
 }
 popQueueUrl(){
 	sed -i '1d;/^$/d' $urlQueue
@@ -131,7 +141,7 @@ handleHist(){
 			then
 				echo 'Resuming from history.'
 				tryResume=1
-				cmd='dl'
+				tryDl='true'
 			fi
 		;;
 	esac
@@ -149,14 +159,14 @@ addToHist(){
 }
 
 
-cmd=$1
-case "$cmd" in
+tryDl='false'
+case "$1" in
 	'')
-		getQueueUrl
+		url=$(getQueueUrl)
 		if [ -n "$url" ] 
 		then
 			popQueueUrl
-			cmd='dl'
+			tryDl='true'
 		fi
 	;;
 	resume)
@@ -165,20 +175,20 @@ case "$cmd" in
 		then
 			url=$2
 		else
-			getQueueUrl
+			url=$(getQueueUrl)
 			[ -n "$url" ] && popQueueUrl
 		fi
-		[ -n "$url" ] && cmd='dl'
+		[ -n "$url" ] && tryDl='true'
 	;;
 	add)
 		addQueueUrl $2
 	;;
 	get)
-		getQueueUrl
+		url=$(getQueueUrl)
 		[ -n "$url" ] && popQueueUrl && echo $url
 	;;
 	top)
-		getQueueUrl
+		url=$(getQueueUrl)
 		[ -n "$url" ] && echo $url
 	;;
 	flush)
@@ -196,12 +206,12 @@ case "$cmd" in
 	;;
 	*)
 		url=$1
-		cmd='dl'
+		tryDl='true'
 	;;
 esac
-if [ "$cmd" = 'dl' ]
+
+if [ "$tryDl" = 'true' ]
 then
 	addToHist $url
 	downloadMedia $url && viewMedia
 fi
-
