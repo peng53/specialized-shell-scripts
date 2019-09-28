@@ -3,6 +3,7 @@
 readonly tempDirectory=/mnt/ramdisk/
 readonly urlQueue=${tempDirectory}mq
 readonly urlQueueHist=${tempDirectory}q_hist
+readonly lastPids=${tempDirectory}last_pids
 readonly playerDefaultArgs='--pause --keep-open --really-quiet'
 readonly youtubeDlDefaultArgs='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
 tryResume=0
@@ -29,10 +30,15 @@ downloadMedia(){
 downloadStreamlink(){
 	local url=$1 to=${tempDirectory}1
 	[ $tryResume -eq 0 ] && overwriteVidBuf $to ${to}old
+	# streamlink /never/ uses aud file
+	overwriteVidBuf ${to}aud ${to}audold
 	echo "Downloading at q = ${vres=240}p"
 	streamlink $url ${vres}p -o ${tempDirectory}1 &
+	echo $! > $lastPids
 	sleep 30
 }
+
+
 
 downloadYoutube(){
 	local url=$1
@@ -40,6 +46,7 @@ downloadYoutube(){
 	getYoutubeFmts ${tempDirectory}formats
 	if [ $? -eq 0 ]
 	then
+		clearPids
 		downloadYoutubeFmt $url $vfmt ${tempDirectory}1
 		sleep 10
 		downloadYoutubeFmt $url $afmt ${tempDirectory}1aud
@@ -51,13 +58,13 @@ getYoutubeFmts(){
 	vfmt=$(findVideoFmtCode ${ext='webm'} ${vres=240} $lines)
 	if [ $vfmt -eq 0 ]
 	then
-		echo 'Video not availiable in resolution.'
+		echo 'Video not available in resolution.'
 		return 1
 	fi
 	afmt=$(findAudioFmtCode ${abr=80} $lines)
 	if [ $afmt -eq 0 ]
 	then
-		echo 'Audio not availiable in bitrate.'
+		echo 'Audio not available in bitrate.'
 		return 1
 	fi
 	return 0
@@ -66,6 +73,7 @@ findAudioFmtCode(){
 	local best=0 desired=$1 lines=$2 code=0 line
 	while IFS= read -r line
 	do
+	# Check if line is a DASH source and parse for bitrate
 		local abr=$(echo $line | egrep 'DASH audio\s+[0-9]+k' -o | egrep '[0-9]+' -o)
 		if [ -n "$abr" ] && [ "$abr" -le "$desired" ] && [ $abr -gt $best ]
 		then
@@ -80,18 +88,16 @@ findVideoFmtCode(){
 	while IFS= read -r line
 	do
 		echo $line | egrep $desiredCodec'\s+[0-9]' -o > /dev/null
-		if [ $? -eq 0 ]
+		[ $? -ne 0 ] && continue
+		# Check if line has vertical resolution
+		local res=$(echo $line | egrep '[0-9]+x[0-9]+\s+[0-9]+p' -o | tr -s ' ' | cut -d ' ' -f 2)
+		[ -z "$res" ] && continue
+		# Extract vertical resolution
+		res=$(echo $res | egrep '[0-9]+' -o)
+		if [ "$res" -le "$desiredVRes" ] && [ "$res" -gt "$bestRes" ]
 		then
-			local res=$(echo $line | egrep '[0-9]+x[0-9]+\s+[0-9]+p' -o | tr -s ' ' | cut -d ' ' -f 2)
-			if [ -n "$res" ]
-			then
-				res=$(echo $res | egrep '[0-9]+' -o)
-				if [ "$res" -le "$desiredVRes" ] && [ "$res" -gt "$bestRes" ]
-				then
-					bestRes=$res
-					bestFmt=$(echo $line | cut -f 1 -d ' ')
-				fi
-			fi
+			bestRes=$res
+			bestFmt=$(echo $line | cut -f 1 -d ' ')
 		fi
 	done < $lines
 	echo $bestFmt
@@ -101,6 +107,7 @@ downloadYoutubeFmt(){
 	[ $tryResume -eq 0 ] && overwriteVidBuf $to ${to}old
 	echo "Download started for fmt $fmt"
 	youtube-dl -q $youtubeDlDefaultArgs -r ${speed=32K} -f $fmt $url -o $to &
+	echo $! >> $lastPids
 }
 overwriteVidBuf(){
 	# Overwrites filename 2nd arg at ${tempDirectory} with 1st arg
@@ -158,6 +165,17 @@ addToHist(){
 	[ $last != $1 ] && echo $1 >> $urlQueueHist
 }
 
+haltLastPid(){
+	local pid
+	while IFS= read -r pid
+	do
+		kill $pid
+	done < $lastPids
+	> $lastPids
+}
+clearPids(){
+	> $lastPids
+}
 
 tryDl='false'
 case "$1" in
@@ -204,13 +222,16 @@ case "$1" in
 	hist)
 		handleHist $2
 	;;
+	halt)
+		haltLastPid
+	;;
 	*)
 		url=$1
 		tryDl='true'
 	;;
 esac
 
-if [ "$tryDl" = 'true' ]
+if [ "$tryDl" = 'true' ] && [ -n "$url" ]
 then
 	addToHist $url
 	downloadMedia $url && viewMedia
