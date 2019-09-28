@@ -162,13 +162,14 @@ addToHist(){
 	[ -z "$1" ] && return
 	local last
 	[ -s $urlQueueHist ] && last=$(getHistUrl)
-	[ $last != $1 ] && echo $1 >> $urlQueueHist
+	[ "$last" != "$1" ] && echo $1 >> $urlQueueHist
 }
 
 haltLastPid(){
 	local pid
 	while IFS= read -r pid
 	do
+		echo "Killed PID #${pid}"
 		kill $pid
 	done < $lastPids
 	> $lastPids
