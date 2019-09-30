@@ -42,12 +42,7 @@ downloadStreamlink(){
 
 downloadYoutube(){
 	local url=$1
-	if [ "$tryResume" -eq 1 ] || [ "$(getHistUrl)" = "$url" ]
-	then
-		tryResume=1
-	else
-		youtube-dl -F $url > ${tempDirectory}formats
-	fi
+	[ "$tryResume" -eq 0 ] && youtube-dl -F $url > ${tempDirectory}formats
 	getYoutubeFmts ${tempDirectory}formats
 	if [ $? -eq 0 ]
 	then
@@ -260,6 +255,7 @@ then
 	checkPids
 	if [ $? -eq 0 ]
 	then
+		[ "$(getHistUrl)" = "$url" ] && tryResume=1
 		addToHist $url
 		downloadMedia $url && viewMedia
 	fi
