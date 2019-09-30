@@ -42,7 +42,12 @@ downloadStreamlink(){
 
 downloadYoutube(){
 	local url=$1
-	youtube-dl -F $url > ${tempDirectory}formats
+	if [ "$tryResume" -eq 1 ] || [ "$(getHistUrl)" = "$url" ]
+	then
+		tryResume=1
+	else
+		youtube-dl -F $url > ${tempDirectory}formats
+	fi
 	getYoutubeFmts ${tempDirectory}formats
 	if [ $? -eq 0 ]
 	then
@@ -56,13 +61,13 @@ downloadYoutube(){
 getYoutubeFmts(){
 	local lines=$1
 	vfmt=$(findVideoFmtCode ${ext='webm'} ${vres=240} $lines)
-	if [ $vfmt -eq 0 ]
+	if [ "$vfmt" -eq 0 ]
 	then
 		echo 'Video not available in resolution.'
 		return 1
 	fi
-	afmt=$(findAudioFmtCode ${abr=80} $lines)
-	if [ $afmt -eq 0 ]
+	afmt=$(findAudioFmtCode ${abr=100} $lines)
+	if [ "$afmt" -eq 0 ]
 	then
 		echo 'Audio not available in bitrate.'
 		return 1
@@ -73,8 +78,8 @@ findAudioFmtCode(){
 	local best=0 desired=$1 lines=$2 code=0 line
 	while IFS= read -r line
 	do
-	# Check if line is a DASH source and parse for bitrate
-		local abr=$(echo $line | egrep 'DASH audio\s+[0-9]+k' -o | egrep '[0-9]+' -o)
+		# Check if line is a DASH source and parse for bitrate
+		local abr=$(echo $line | egrep 'audio only tiny\s+[0-9]+k' -o | egrep '[0-9]+' -o)
 		if [ -n "$abr" ] && [ "$abr" -le "$desired" ] && [ $abr -gt $best ]
 		then
 			best=$abr
@@ -128,9 +133,13 @@ popQueueUrl(){
 }
 
 viewMedia(){
-	echo Viewing media
-	[ -s ${tempDirectory}1aud ] && dash=--audio-file=${tempDirectory}1aud
-	[ -s ${tempDirectory}1 ] && mpv $playerDefaultArgs ${tempDirectory}1 $dash &
+	if [ -s ${tempDirectory}1 ]
+	then
+		local dash
+		[ -s ${tempDirectory}1aud ] && dash=--audio-file=${tempDirectory}1aud
+		echo Viewing media
+		mpv $playerDefaultArgs ${tempDirectory}1 $dash &
+	fi
 }
 
 
@@ -178,11 +187,25 @@ clearPids(){
 	> $lastPids
 }
 
+checkPids(){
+	[ ! -f $lastPids ] && return 0
+	local pid
+	while IFS= read -r pid
+	do
+		if [ -d /proc/$pid ]
+		then
+			echo Process from last call still open! $pid
+			return 1
+		fi
+	done < $lastPids
+	return 0
+}
+
 tryDl='false'
 case "$1" in
 	'')
 		url=$(getQueueUrl)
-		if [ -n "$url" ] 
+		if [ -n "$url" ]
 		then
 			popQueueUrl
 			tryDl='true'
@@ -234,6 +257,10 @@ esac
 
 if [ "$tryDl" = 'true' ] && [ -n "$url" ]
 then
-	addToHist $url
-	downloadMedia $url && viewMedia
+	checkPids
+	if [ $? -eq 0 ]
+	then
+		addToHist $url
+		downloadMedia $url && viewMedia
+	fi
 fi
