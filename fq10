@@ -24,7 +24,7 @@ downloadMedia(){
 			return 1
 		;;
 	esac
-	return 0
+	return $?
 }
 
 downloadStreamlink(){
@@ -36,6 +36,7 @@ downloadStreamlink(){
 	streamlink $url ${vres}p -o ${tempDirectory}1 &
 	echo $! > $lastPids
 	sleep 30
+	return 0
 }
 
 
@@ -51,6 +52,9 @@ downloadYoutube(){
 		sleep 10
 		downloadYoutubeFmt $url $afmt ${tempDirectory}1aud
 		sleep 20
+		return 0
+	else
+		return 1
 	fi
 }
 getYoutubeFmts(){
@@ -61,7 +65,7 @@ getYoutubeFmts(){
 		echo 'Video not available in resolution.'
 		return 1
 	fi
-	afmt=$(findAudioFmtCode ${abr=100} $lines)
+	afmt=$(findAudioFmtCode ${abr=80} $lines)
 	if [ "$afmt" -eq 0 ]
 	then
 		echo 'Audio not available in bitrate.'
