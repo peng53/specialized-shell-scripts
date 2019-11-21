@@ -31,6 +31,19 @@ def get_urls(url: str, vheight: int, vfmt: str, abr: int):
 		return (vmatch['url'],abest['url'])
 	print("no amatch")
 
+def get_video_fmt(info, vheight: int, vfmt: str):
+	vids = filter(lambda d: d['vcodec']!='none' d['acodec']=='none' and d['ext']==vfmt, info['formats'])
+	vmatch = next(filter(lambda v: int(v['height'])==vheight, vids), None)
+	return vmatch
+
+def get_audio_fmt(info, abr: int):
+	# Returns audio fmt with abr equal or less than desired abr
+	auds = filter(lambda d: d['vcodec']=='none' and d['acodec']!='none', info['formats'])
+	matches = filter(lambda d: d['abr'] <= abr, auds)
+	codes_n_abr = ((m['format_id'], m['abr']) for m in matches)
+	amatch = max(codes_n_abr, key=lambda x: x[1])
+	return amatch[0] if amatch else None
+
 def download(url: str, outdir: str, filename: str):
 	# Downloads Url to outdir/filename.
 	# Will not clobber.
