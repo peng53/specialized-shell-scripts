@@ -1,4 +1,4 @@
-from sys import argv
+from sys import argv, exit
 from time import sleep
 import argparse
 import youtube_dl
@@ -7,6 +7,7 @@ import threading
 
 
 def yt_info():
+	''' Returns YoutubeDL object for searching formats '''
 	return youtube_dl.YoutubeDL(
 		{
 		"call_home": False,
@@ -16,12 +17,13 @@ def yt_info():
 	)
 
 def get_video_fmt(info, vheight: int, vfmt: str):
+	''' Return video fmt with vheight and vfmt '''
 	vids = filter(lambda d: d['vcodec']!='none' and d['acodec']=='none' and d['ext']==vfmt, info['formats'])
 	vmatch = next(filter(lambda v: int(v['height'])==vheight, vids), None)
 	return vmatch['format_id'] if vmatch else None
 
 def get_audio_fmt(info, abr: int):
-	# Returns audio fmt with abr equal or less than desired abr
+	''' Returns audio fmt with abr equal or less than desired abr'''
 	auds = filter(lambda d: d['vcodec']=='none' and d['acodec']!='none', info['formats'])
 	matches = filter(lambda d: d['abr'] <= abr, auds)
 	codes_n_abr = ((m['format_id'], m['abr']) for m in matches)
@@ -29,59 +31,29 @@ def get_audio_fmt(info, abr: int):
 	return amatch[0] if amatch else None
 
 class DownloadThread(threading.Thread):
-	def __init__(self, url: str, fmt: int, out: str, ratelimit: int):
+	def __init__(self, url: str, fmt: int, out: str, ratelimit: int, quiet=True):
 		if os.path.exists(out):
 			raise FileAlreadyExistsException
 		super(DownloadThread, self).__init__()
 		self.url = url
 		self.args = {
 			"call_home": False,
-			"quiet": True,
+			"quiet": quiet,
 			'format': fmt,
 			'outtmpl': out,
 			'nopart': True,
-			'ratelimit': ratelimit*1024
+			'ratelimit': ratelimit*1024,
+			'continuedl': True
 		}
 		self.exception = None
 		self.done = False
 	def run(self):
 		downloader = youtube_dl.YoutubeDL(self.args)
-		print('{} To file {}'.format(self.args['format'], self.args['outtmpl']))
 		try:
 			downloader.download([self.url])
 		except Exception as e:
 			self.exception = e
 		self.done = True
-
-'''
-def download_thread(url: str, fmt: int, out: str, ratelimit: int):
-	return threading.Thread(
-		target=download_fmt,
-		args=(
-			url,
-			fmt,
-			out,
-			ratelimit
-		)
-	)
-
-def download_fmt(url: str, fmt: int, out: str, ratelimit=None):
-	if os.path.exists(out):
-		raise FileAlreadyExistsException
-	args = {
-		"call_home": False,
-		"quiet": True,
-		'format': fmt,
-		'outtmpl': out,
-		'nopart': True,
-	}
-	if ratelimit:
-		args['ratelimit'] = ratelimit*1000
-	downloader = youtube_dl.YoutubeDL(args)
-	print('{} To file {}'.format(fmt, out))
-	downloader.download([url])
-
-'''
 
 class FileAlreadyExistsException(Exception):
 	pass
@@ -89,8 +61,9 @@ class FileAlreadyExistsException(Exception):
 class MainParser:
 	def __init__(self):
 		self.parser = argparse.ArgumentParser('Perform certain tasks with youtube-dl api')
-		self.vidparams = self.parser.add_argument_group('Video Params', description='params that describe the desired video.')
+		self.parser.add_argument('-v', '--verbose', help='Causes more output to stdout', default=False, action='store_false')
 		self.parser.add_argument('task', type=str, help='Task to be completed with URL', choices=['exists', 'download'])
+		self.vidparams = self.parser.add_argument_group('Video Params', description='params that describe the desired video.')
 		self.vidparams.add_argument('url', type=str, help='Video URL')
 		self.vidparams.add_argument('-F', '--fmt', type=str, help='File format', default='webm')
 		self.vidparams.add_argument('--res', type=int, help='Video vertical resolution')
@@ -103,7 +76,7 @@ class MainParser:
 		return self.parser.parse_args(args)
 
 
-if __name__=='__main__':
+def main(argv):
 	t = MainParser().parse(argv[1:])
 	yd = yt_info()
 	info = yd.extract_info(t.url)
@@ -112,23 +85,33 @@ if __name__=='__main__':
 	audf = get_audio_fmt(info, t.abr) if t.abr else None
 	success = True if ((not t.res or vidf) and (not t.abr or audf)) else False
 
+	if not success:
+		if t.verbose:
+			print('Could not find format(s) matching.')
+		return 1
 	if t.task=='exists':
-		print(success)
-	elif t.task=='download' and success:
+		return 0
+	elif t.task=='download':
 		threads = []
 		if t.res:
-			vidt = DownloadThread(t.url, vidf, t.out, t.rate)
+			vidt = DownloadThread(t.url, vidf, t.out, t.rate, t.verbose)
+			if t.verbose:
+				print('{} To file {}'.format(vidf, t.out))
 			threads.append(vidt)
-			#threads.append(download_thread(t.url, vidf, t.out, t.rate))
 		if t.abr:
-			audt = DownloadThread(t.url, audf, t.out+'aud', t.rate)
+			audt = DownloadThread(t.url, audf, t.out+'aud', t.rate, t.verbose)
+			if t.verbose:
+				print('{} To file {}'.format(audf, t.out))
 			threads.append(audt)
-			#threads.append(download_thread(t.url, audf, t.out+'aud', t.rate))
 
 		for t in threads:
 			t.start()
 
 		for t in threads:
+			t.join()
 			if t.exception:
 				raise Exception
-			t.join()
+	return 0
+
+if __name__=='__main__':
+	exit(main(argv))
