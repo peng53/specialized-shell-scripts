@@ -1,11 +1,9 @@
+from sys import argv
+import argparse
 import youtube_dl
-import functools
 import os
-import urllib
-import shutil
 import threading
-import subprocess
-from time import sleep
+
 
 def yt_info():
 	return youtube_dl.YoutubeDL(
@@ -29,14 +27,16 @@ def get_audio_fmt(info, abr: int):
 	amatch = max(codes_n_abr, key=lambda x: x[1])
 	return amatch[0] if amatch else None
 
-def download(url: str, outdir: str, filename: str):
-	# Downloads Url to outdir/filename.
-	# Will not clobber.
-	path = os.path.join(outdir,filename)
-	if os.path.exists(path):
-		return
-	with urllib.request.urlopen(url) as response, open(path, 'wb') as out_file:
-		shutil.copyfileobj(response, out_file)
+def download_thread(url: str, fmt: int, out: str, ratelimit: int):
+	return threading.Thread(
+		target=download_fmt,
+		args=(
+			url,
+			fmt,
+			out,
+			ratelimit
+		)
+	)
 
 def download_fmt(url: str, fmt: int, out: str, ratelimit=None):
 	if os.path.exists(out):
@@ -51,9 +51,11 @@ def download_fmt(url: str, fmt: int, out: str, ratelimit=None):
 	if ratelimit:
 		args['ratelimit'] = ratelimit*1000
 	downloader = youtube_dl.YoutubeDL(args)
+	print('{} To file {}'.format(fmt, out))
 	downloader.download([url])
 
-import argparse
+class FileAlreadyExistsException(Exception):
+	pass
 
 class MainParser:
 	def __init__(self):
@@ -67,10 +69,10 @@ class MainParser:
 
 		self.vidparams.add_argument('-o', '--out', type=str, help='Download directory', default=os.path.join(os.getcwd(),'out'))
 		self.vidparams.add_argument('-r', '--rate', type=int, help='Download rate in KB/S', default=None)
+
 	def parse(self, args):
 		return self.parser.parse_args(args)
 
-from sys import argv
 
 if __name__=='__main__':
 	t = MainParser().parse(argv[1:])
@@ -86,32 +88,11 @@ if __name__=='__main__':
 	elif t.task=='download' and success:
 		threads = []
 		if t.res:
-			threads.append(
-				threading.Thread(
-					target=download_fmt,
-					args=(
-						t.url,
-						vidf,
-						t.out,
-						40
-					)
-				)
-			)
+			threads.append(download_thread(t.url, vidf, t.out, t.rate))
 		if t.abr:
-			threads.append(
-				threading.Thread(
-					target=download_fmt,
-					args=(
-						t.url,
-						audf,
-						t.out+'aud',
-						40
-					)
-				)
-			)
+			threads.append(download_thread(t.url, audf, t.out+'aud', t.rate))
+
 		for t in threads:
-			print("Started!")
 			t.start()
 		for t in threads:
-			print("Ended!")
 			t.join()
