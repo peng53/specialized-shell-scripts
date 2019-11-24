@@ -1,4 +1,5 @@
 from sys import argv
+from time import sleep
 import argparse
 import youtube_dl
 import os
@@ -27,6 +28,32 @@ def get_audio_fmt(info, abr: int):
 	amatch = max(codes_n_abr, key=lambda x: x[1])
 	return amatch[0] if amatch else None
 
+class DownloadThread(threading.Thread):
+	def __init__(self, url: str, fmt: int, out: str, ratelimit: int):
+		if os.path.exists(out):
+			raise FileAlreadyExistsException
+		super(DownloadThread, self).__init__()
+		self.url = url
+		self.args = {
+			"call_home": False,
+			"quiet": True,
+			'format': fmt,
+			'outtmpl': out,
+			'nopart': True,
+			'ratelimit': ratelimit*1024
+		}
+		self.exception = None
+		self.done = False
+	def run(self):
+		downloader = youtube_dl.YoutubeDL(self.args)
+		print('{} To file {}'.format(self.args['format'], self.args['outtmpl']))
+		try:
+			downloader.download([self.url])
+		except Exception as e:
+			self.exception = e
+		self.done = True
+
+'''
 def download_thread(url: str, fmt: int, out: str, ratelimit: int):
 	return threading.Thread(
 		target=download_fmt,
@@ -53,6 +80,8 @@ def download_fmt(url: str, fmt: int, out: str, ratelimit=None):
 	downloader = youtube_dl.YoutubeDL(args)
 	print('{} To file {}'.format(fmt, out))
 	downloader.download([url])
+
+'''
 
 class FileAlreadyExistsException(Exception):
 	pass
@@ -88,11 +117,18 @@ if __name__=='__main__':
 	elif t.task=='download' and success:
 		threads = []
 		if t.res:
-			threads.append(download_thread(t.url, vidf, t.out, t.rate))
+			vidt = DownloadThread(t.url, vidf, t.out, t.rate)
+			threads.append(vidt)
+			#threads.append(download_thread(t.url, vidf, t.out, t.rate))
 		if t.abr:
-			threads.append(download_thread(t.url, audf, t.out+'aud', t.rate))
+			audt = DownloadThread(t.url, audf, t.out+'aud', t.rate)
+			threads.append(audt)
+			#threads.append(download_thread(t.url, audf, t.out+'aud', t.rate))
 
 		for t in threads:
 			t.start()
+
 		for t in threads:
+			if t.exception:
+				raise Exception
 			t.join()
