@@ -3,10 +3,9 @@ from sys import exit, argv as ARGV
 from typing import Dict
 from typing import Callable
 from typing import List
-import threading
-import os
 from yt_dl_urls import DownloadThread, get_audio_fmt, get_video_fmt, yt_info
-import youtube_dl
+import os
+import argparse
 
 def binary_exists(bin_path: str,PATH: List[str] = []) -> bool:
 	"""Checks if binary exists."""
@@ -19,11 +18,9 @@ def binary_exists(bin_path: str,PATH: List[str] = []) -> bool:
 		return any(bin_path in os.listdir(f) for f in PATH)
 
 player = "mpv" # type: str
-yt_dl = os.path.expanduser("~/.local/bin/youtube-dl") # type: str
-sl_bin = os.path.expanduser("~/.local/bin/streamlink") # type: str
-
 player_args = ["--really-quiet", "--pause", "--keep-open"] # type: List[str]
-yt_dl_args = ["--no-part","--youtube-skip-dash-manifest","--no-call-home","--no-playlist"] # type: List[str]
+
+sl_bin = os.path.expanduser("~/.local/bin/streamlink") # type: str
 sl_bin_args = ["--player-no-close","--player-passthrough","hls"] # type: List[str]
 
 tmp_dir = "/mnt/ramdisk" # type: str
@@ -33,13 +30,13 @@ q_hist_name = "q_hist" # type: str
 def_env = {
 	"quality": 240,
 	"aquality": 80,
-	"speed": float(32000),
+	"speed": 32,
 	"slquality":"240p",
 	"format": 'webm'
 } # type: Dict[str]
 
 if __name__=="__main__":
-	for bin_path in [player,yt_dl,sl_bin]:
+	for bin_path in [player,sl_bin]:
 		# Exits if defined yet doesn't exists
 		if bin_path and not binary_exists(bin_path):
 			print("{} does not exist.".format(bin_path))
@@ -182,24 +179,25 @@ def case_go(args: List[str],resume: bool = False) -> None:
 	if not url:
 		return
 	yd = yt_info()
+	print('Getting url data')
 	info = yd.extract_info(url)
-
+	print('Searching for formats')
 	vidf = get_video_fmt(info, get_envvar("quality"), get_envvar("format"))
 	audf = get_audio_fmt(info, get_envvar("aquality"))
 	if not audf or not vidf:
+		print('Formats not found, ending.')
 		return
 	if not resume:
 		push_out(tmp_dir,'1','0')
 		push_out(tmp_dir,'1aud','0aud')
 
-	vid = DownloadThread(url, vidf, os.path.join(tmp_dir,'1'), 32, True)
-	aud = DownloadThread(url, audf, os.path.join(tmp_dir,'1aud'), 32, True)
-
+	vid = DownloadThread(url, vidf, os.path.join(tmp_dir,'1'), get_envvar('speed'), True)
+	aud = DownloadThread(url, audf, os.path.join(tmp_dir,'1aud'), get_envvar('speed'), True)
+	print('Starting downloads')
 	vid.start()
 	sleep(15)
 	aud.start()
 	sleep(10)
-
 	view_vid(tmp_dir,'1','1aud')
 	vid.join()
 	aud.join()
@@ -249,22 +247,40 @@ def case_streamlink(args: List[str]) -> None:
 	else:
 		try_sl(url,quality)
 
-ops = {
-#keyword function req_args
-	"view": case_view,
-	"see" : case_see,
-	"top" : case_top,
-	"fls" : case_flush,
-	"resm": case_resume,
-	"*"   : case_default,
-	"go"  : case_go,
-	"add" : case_add,
-	"sl"  : case_streamlink
-} # type: Dict[str,Callable]
+class MainParser:
+	def __init__(self):
+		# url as task should be intercepted in-lieu of MainParser
+		self.parser = argparse.ArgumentParser('File-queue caller system')
+		self.tasks = self.parser.add_subparsers(title='Subcommand', help='Task for fq_t to perform')
 
-if __name__=="__main__":
-	if len(ARGV)<2 or not ARGV[1] in ops:
-		ops["*"]([])
+		self.goTask = self.tasks.add_parser('go', help='Download arg or on queue')
+		self.goTask.set_defaults(func=case_default)
+		self.goTask.add_argument('url', help='Url to download', required=False)
+
+		self.viewTask = self.tasks.add_parser('view', help='View latest video downloaded')
+		self.viewTask.set_defaults(func=case_view)
+		self.seeTask = self.tasks.add_parser('see', help='View entire file queue')
+		self.seeTask.set_defaults(func=case_see)
+		self.topTask = self.tasks.add_parser('top', help='View first line of queue')
+		self.topTask.set_defaults(func=case_top)
+		self.flsTask = self.tasks.add_parser('flush', help='Clear url queue')
+		self.flsTask.set_defaults(func=case_flush)
+		self.addTask = self.tasks.add_parser('add', help='Add a url to file queue')
+		self.addTask.set_defaults(func=case_add)
+		self.addTask.add_argument('url', help='Url to add')
+		self.resumeTask = self.tasks.add_parser('resume', help='Resume last download.')
+		self.resumeTask.set_defaults(func=case_resume)
+		self.resumeTask.add_argument('url', help='Url to resume')
+
+	def parse(self, args):
+		t = self.parser.parse_args(args)
+		t.func(args)
+
+if __name__=='__main__':
+	if len(ARGV)==1:
+		case_default([])
+	elif len(ARGV)==2 and ARGV[1].startswith('http'):
+		case_default([ARGV[1]])
 	else:
-		args = ARGV[1:] # type: List[str]
-		ops[args[0]](args)
+		m = MainParser()
+		m.parse(ARGV[1:])
