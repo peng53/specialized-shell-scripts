@@ -5,6 +5,8 @@ from typing import Callable
 from typing import List
 import threading
 import os
+from yt_dl_urls import DownloadThread, get_audio_fmt, get_video_fmt, yt_info
+import youtube_dl
 
 def binary_exists(bin_path: str,PATH: List[str] = []) -> bool:
 	"""Checks if binary exists."""
@@ -33,6 +35,7 @@ def_env = {
 	"aquality": 80,
 	"speed": float(32000),
 	"slquality":"240p",
+	"format": 'webm'
 } # type: Dict[str]
 
 if __name__=="__main__":
@@ -173,62 +176,30 @@ def case_view(args: List[str]) -> None:
 	view_vid(tmp_dir,'1','1aud')
 	print("{:s} Launched.".format(player))
 
-def yt_vfmt(hres: int, ext: str) -> str:
-	'''	Returns youtube-dl format specifier regarding videos'''
-	return "bestvideo[height<={0}][ext={1}]".format(hres, ext)
-
-def yt_afmt(bitrate: int) -> str:
-	'''	Returns youtube-dl format specifier regarding audio	'''
-	return "bestaudio[abr<={0}]".format(bitrate)
-
-try:
-	import youtube_dl
-	def try_yt(url: str,dformat: str,v_dir: str,v_name: str='1') -> None:
-		"""	Uses youtube-dl's api to download and watch the video."""
-		args = {
-			"format": dformat,
-			"noplaylist": True,
-			"call_home": False,
-			"outtmpl": os.path.join(v_dir,v_name),
-			# "tmpfilename": os.path.join(v_dir,v_name),
-			"ratelimit": get_envvar("speed"),
-			"continuedl": True,
-			"nopart": True,
-			"quiet": True
-		}
-		try:
-			ydl = youtube_dl.YoutubeDL(args)
-			ydl.extract_info(url)
-		except:
-			print("Failed to download completely")
-			#print(e)
-
-except ImportError:
-	def try_yt(url: str, dformat: str, v_dir: str,v_name: str='1') -> None:
-		"""	Downloads video with youtube-dl binary."""
-		speed = get_envvar("speed") # type: str
-		cmd = [yt_dl,"-q","-f",dformat,"-r",speed,url,"-o",os.path.join(v_dir,v_name)]+yt_dl_args # type: List[str]
-		print("Downloading video quality={:s} at speed={:s}".format(dformat,speed))
-		run(cmd)
-
 def case_go(args: List[str],resume: bool = False) -> None:
 	"""	Downloads next item in queue or supplied url from args.	"""
 	url = args[1] if len(args)>1 else remove_top(q_name,tmp_dir) # type: str
 	if not url:
 		return
+	yd = yt_info()
+	info = yd.extract_info(url)
+
+	vidf = get_video_fmt(info, get_envvar("quality"), get_envvar("format"))
+	audf = get_audio_fmt(info, get_envvar("aquality"))
+	if not audf or not vidf:
+		return
 	if not resume:
 		push_out(tmp_dir,'1','0')
 		push_out(tmp_dir,'1aud','0aud')
-	vid = threading.Thread(target=try_yt, args=
-		(url,yt_vfmt(get_envvar("quality"),'webm'), tmp_dir, "1")
-	)
+
+	vid = DownloadThread(url, vidf, os.path.join(tmp_dir,'1'), 32, True)
+	aud = DownloadThread(url, audf, os.path.join(tmp_dir,'1aud'), 32, True)
+
 	vid.start()
 	sleep(15)
-	aud = threading.Thread(target=try_yt, args=
-		(url,yt_afmt(get_envvar("aquality")), tmp_dir, "1aud")
-	)
 	aud.start()
 	sleep(10)
+
 	view_vid(tmp_dir,'1','1aud')
 	vid.join()
 	aud.join()
