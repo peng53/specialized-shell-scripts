@@ -6,13 +6,11 @@ from typing import List
 from yt_dl_urls import YTDownloadThread, get_audio_fmt, get_video_fmt, yt_info, FileAlreadyExistsException
 from tempfile import mktemp
 from subprocess import run,Popen
-from time import sleep, time
-import urllib
+from time import sleep
+import datetime
 import os
 import argparse
 import streamlink
-import threading
-import shutil
 
 q_name = "mq" # type: str
 q_hist_name = "q_hist" # type: str
@@ -214,43 +212,33 @@ def try_sl(url: str,quality: str) -> None:
 	"""	Trys to load stream of quality to player"""
 	stream = query_formats(url,quality)
 	if stream:
-		#run([get_envvar('player'),stream.url]+player_args)
 		push_out(get_envvar('TMP'),'1','0')
 		push_out(get_envvar('TMP'),'1aud','0aud')
-		#thrd = DownloadThread(stream.url, os.path.join(get_envvar('TMP'), '1'))
-		#thrd.start()
-		#downloadAFile(stream.url, os.path.join(get_envvar('TMP'), '1'))
-		#with stream.open() as fd, open(os.path.join(get_envvar('TMP'), '1'), 'wb') as out:
-		#	shutil.copyfileobj(fd.read(1024), out)
 		downloadAStream(stream, os.path.join(get_envvar('TMP'), '1'))
 		sleep(30)
 		view_vid(get_envvar('TMP'), '1')
-		#thrd.join()
-
-
-class DownloadThread(threading.Thread):
-	def __init__(self, url: str, out: str):
-		if os.path.exists(out):
-			raise FileAlreadyExistsException
-		super(DownloadThread, self).__init__(daemon=True)
-		self.url = url
-		self.out = out
-	def run(self):
-		downloadAFile(self.url, self.out)
-
-def downloadAFile(url: str, to: str):
-	with urllib.request.urlopen(url) as response, open(to, 'wb') as out_file:
-		shutil.copyfileobj(response, out_file)
-
-import datetime
 
 def downloadAStream(stream, to: str):
 	chunkSize = 1024
+	desiredRate = 60
+	sampleRate = 30
+	stdDelay = (chunkSize/1024)*sampleRate/desiredRate
+	print('Standard delay: {}'.format(stdDelay))
 	with stream.open() as s, open(to, 'ab') as t:
+		startTime = datetime.datetime.now()
 		d = s.read(chunkSize)
+		i = 1
 		while d:
 			t.write(d)
 			d = s.read(chunkSize)
+			i += 1
+			if i==sampleRate:
+				elapsedTime = (datetime.datetime.now()-startTime).seconds
+				delay = stdDelay-elapsedTime if stdDelay-elapsedTime>0 else stdDelay
+				print('Sleeping {} seconds! // {}'.format(delay,elapsedTime))
+				sleep(delay)
+				i = 0
+				startTime = datetime.datetime.now()
 
 def case_streamlink(args: List[str]) -> None:
 	"""	Tries to play video with streamlink & 'player'
