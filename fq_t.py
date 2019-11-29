@@ -5,8 +5,9 @@ from typing import Callable
 from typing import List
 from yt_dl_urls import YTDownloadThread, get_audio_fmt, get_video_fmt, yt_info, FileAlreadyExistsException
 from tempfile import mktemp
-from subprocess import run,Popen
+from subprocess import Popen
 from time import sleep
+import threading
 import datetime
 import os
 import argparse
@@ -15,42 +16,31 @@ import streamlink
 q_name = "mq" # type: str
 q_hist_name = "q_hist" # type: str
 
-def_env = {
+settings = {
 	"quality": 240,
 	"abr": 80,
-	"speed": 32,
-	"slquality":"240p",
+	"speed": 56,
 	"format": 'webm',
 	'player': 'mpv',
 	'TMP': "/mnt/ramdisk",
-
 } # type: Dict[str]
+
+for key in settings:
+	if key in os.environ:
+		settings[key] = os.environ[key]
 
 player_args = ["--really-quiet", "--pause", "--keep-open"] # type: List[str]
 
-def get_envvar(varname: str) -> str:
-	# gets var value from enviroment.
-	# if not present, select default from def_env dict
-	# if not present there, return None.
-	if varname in os.environ:
-		#print("Using enviroment var {}".format(varname))
-		return os.environ[varname]
-	elif varname in def_env:
-		#print("Using def var {}".format(varname))
-		return def_env[varname]
-
 def filePeek(F) -> str:
-	# F is an file in 'r' mode.
-	# get first line from F. if none, return None.
+	''' Return first line from file object'''
 	return F.readline()
 
 def filePop(filename: str) -> str:
 	''' removes first line from file and return it '''
-
 	if not os.path.exists(filename):
 		print("Queue file does not exist.")
 		return
-	tmp_f = mktemp(dir=get_envvar('TMP')) # type: str
+	tmp_f = mktemp(dir=settings['TMP']) # type: str
 	os.rename(filename,tmp_f)
 	r = None # type: str
 	with open(tmp_f,'r') as f, open(filename,'w') as g:
@@ -64,7 +54,7 @@ def filePop(filename: str) -> str:
 	os.remove(tmp_f)
 	if r:
 		r = r.rstrip()
-		fileAppend(os.path.join(get_envvar('TMP'),q_hist_name), r)
+		fileAppend(os.path.join(settings['TMP'],q_hist_name), r)
 		return r
 
 def fileAppend(filename: str,line: str) -> None:
@@ -79,7 +69,7 @@ def view_vid(v_dir: str,v_name: str, a_name: str = None) -> None:
 		player args. Takes a_name optionally as audio track."""
 	vid = os.path.join(v_dir,v_name)
 	if os.path.exists(vid):
-		cmd = [get_envvar('player'),vid]+player_args
+		cmd = [settings['player'],vid]+player_args
 		if a_name:
 			cmd.append('--audio-file='+os.path.join(v_dir,a_name))
 		Popen(cmd)
@@ -103,11 +93,11 @@ def case_default(args: List[str]) -> None:
 	"""	Default case.
 		Downloads next item in queue.
 		Auto detects what to use."""
-	url = args[1] if len(args)>1 else filePop(os.path.join(get_envvar('TMP'),q_name)) # type: str
+	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
 	if url.find("youtube.com/")>=0: # its a me, youtube
 		case_youtube([None,url],resume=False)
 	elif url.find("crunchyroll.com/")>=0: # its a me, me
-		quality = args[1] if len(args)>2 else get_envvar("slquality")
+		quality = args[1] if len(args)>2 else settings["quality"]
 		case_streamlink([None,url,quality])
 	else:
 		print("Url unrecognized or empty.")
@@ -120,20 +110,20 @@ def case_resume(args: List[str]) -> None:
 
 def case_flush(args: List[str]) -> None:
 	"""		Clears contents of queue. Also creates it if doesn't already exist."""
-	clear_file(os.path.join(get_envvar('TMP'),q_name))
+	clear_file(os.path.join(settings['TMP'],q_name))
 	print("Queue was cleared.")
 
 def case_add(args: List[str]) -> None:
 	"""	Adds item to queue."""
 	if len(args)>1 and len(args[1])>0:
 		url = args[1]
-		fileAppend(os.path.join(get_envvar('TMP'),q_name),url)
+		fileAppend(os.path.join(settings['TMP'],q_name),url)
 	else:
 		print("URL was blank.")
 
 def case_top(args: List[str]) -> None:
 	"""	Print next item in queue if possible."""
-	qfile = os.path.join(get_envvar('TMP'),q_name)
+	qfile = os.path.join(settings['TMP'],q_name)
 	if os.path.exists(qfile):
 		url = filePeek(open(qfile,'r')) # type: str
 		if url:
@@ -143,7 +133,7 @@ def case_top(args: List[str]) -> None:
 
 def case_see(args: List[str]) -> None:
 	"""	Print queue contents to stdout.	"""
-	qfile = os.path.join(get_envvar('TMP'),q_name) # type: str
+	qfile = os.path.join(settings['TMP'],q_name) # type: str
 	if os.path.exists(qfile):
 		with open(qfile,'r') as f:
 			for l in f:
@@ -151,8 +141,8 @@ def case_see(args: List[str]) -> None:
 
 def case_view(args: List[str]) -> None:
 	"""	Launch viewer and player last downloaded video.	"""
-	view_vid(get_envvar('TMP'),'1','1aud')
-	print("{:s} Launched.".format(get_envvar('player')))
+	view_vid(settings['TMP'],'1','1aud')
+	print("{:s} Launched.".format(settings['player']))
 
 def searchYtFormats(url: str, resolution: int, fmt: str, abr: int):
 	yd = yt_info()
@@ -163,30 +153,30 @@ def searchYtFormats(url: str, resolution: int, fmt: str, abr: int):
 	audf = get_audio_fmt(info, abr)
 	return (vidf, audf)
 
-def downloadYtFmts(url: str, video: int, audio: int):
-	vid = YTDownloadThread(url, video, os.path.join(get_envvar('TMP'),'1'), get_envvar('speed'), True)
-	aud = YTDownloadThread(url, audio, os.path.join(get_envvar('TMP'),'1aud'), get_envvar('speed'), True)
+def downloadYtFmts(url: str, video: int, audio: int) -> None:
+	vid = YTDownloadThread(url, video, os.path.join(settings['TMP'],'1'), settings['speed'], True)
+	aud = YTDownloadThread(url, audio, os.path.join(settings['TMP'],'1aud'), settings['speed'], True)
 	print('Starting downloads')
 	vid.start()
 	sleep(15)
 	aud.start()
 	sleep(10)
-	view_vid(get_envvar('TMP'),'1','1aud')
+	view_vid(settings['TMP'],'1','1aud')
 	vid.join()
 	aud.join()
 
 def case_youtube(args: List[str],resume: bool = False) -> None:
 	"""	Downloads next item in queue or supplied url from args.	"""
-	url = args[1] if len(args)>1 else filePop(os.path.join(get_envvar('TMP'),q_name)) # type: str
+	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
 	if not url:
 		return
-	vidf, audf = searchYtFormats(url, get_envvar("quality"), get_envvar("format"), get_envvar("abr"))
+	vidf, audf = searchYtFormats(url, settings['quality'], settings['format'], settings['abr'])
 	if not audf or not vidf:
 		print('Formats not found, ending.')
 		return
 	if not resume:
-		push_out(get_envvar('TMP'),'1','0')
-		push_out(get_envvar('TMP'),'1aud','0aud')
+		push_out(settings['TMP'],'1','0')
+		push_out(settings['TMP'],'1aud','0aud')
 	downloadYtFmts(url, vidf, audf)
 
 def interactive_format_choose(streams):
@@ -208,22 +198,28 @@ def query_formats(url: str, quality: str):
 		print("Quality {} not available.".format(quality))
 		return interactive_format_choose(streams)
 
-def try_sl(url: str,quality: str) -> None:
+def try_sl(url: str, resolution: int) -> None:
 	"""	Trys to load stream of quality to player"""
-	stream = query_formats(url,quality)
+	stream = query_formats(url,str(resolution)+'p')
 	if stream:
-		push_out(get_envvar('TMP'),'1','0')
-		push_out(get_envvar('TMP'),'1aud','0aud')
-		downloadAStream(stream, os.path.join(get_envvar('TMP'), '1'))
-		sleep(30)
-		view_vid(get_envvar('TMP'), '1')
+		push_out(settings['TMP'],'1','0')
+		push_out(settings['TMP'],'1aud','0aud')
+		downloader = threading.Thread(
+			target=downloadAStream,
+			args=(stream, os.path.join(settings['TMP'],'1')),
+			daemon=True
+		)
+		downloader.start()
+		sleep(15)
+		view_vid(settings['TMP'], '1')
+		downloader.join()
 
-def downloadAStream(stream, to: str):
+def downloadAStream(stream, to: str) -> None:
 	chunkSize = 1024
-	desiredRate = 60
+	desiredRate = settings['speed']
 	sampleRate = 30
 	stdDelay = (chunkSize/1024)*sampleRate/desiredRate
-	print('Standard delay: {}'.format(stdDelay))
+	#print('Standard delay: {}'.format(stdDelay))
 	with stream.open() as s, open(to, 'ab') as t:
 		startTime = datetime.datetime.now()
 		d = s.read(chunkSize)
@@ -235,7 +231,7 @@ def downloadAStream(stream, to: str):
 			if i==sampleRate:
 				elapsedTime = (datetime.datetime.now()-startTime).seconds
 				delay = stdDelay-elapsedTime if stdDelay-elapsedTime>0 else stdDelay
-				print('Sleeping {} seconds! // {}'.format(delay,elapsedTime))
+				#print('Sleeping {} seconds! // {}'.format(delay,elapsedTime))
 				sleep(delay)
 				i = 0
 				startTime = datetime.datetime.now()
@@ -245,8 +241,8 @@ def case_streamlink(args: List[str]) -> None:
 		args in additon to 'sl' can contain URL and quality.
 		args[1] is ALWAYS the quality. If getting url from q_file,
 		quality must be set in enviroment."""
-	url = args[1] if len(args)>1 else filePop(os.path.join(get_envvar('TMP'),q_name)) # type: str
-	quality = args[2] if len(args)>2 else get_envvar("slquality") # type: str
+	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
+	quality = args[2] if len(args)>2 else settings["quality"] # type: str
 	if not url or not quality:
 		print("URL or quality is required but missing.")
 	else:
