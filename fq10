@@ -177,8 +177,11 @@ haltLastPid(){
 	local pid
 	while IFS= read -r pid
 	do
-		echo "Killed PID #${pid}"
-		kill $pid
+		if [ -d /proc/$pid ]
+		then
+			kill $pid
+			echo "Killed PID #${pid}"
+		fi
 	done < $lastPids
 	> $lastPids
 }
@@ -235,6 +238,9 @@ case "$1" in
 	flush)
 		> $urlQueue
 		echo 'Queue flushed.'
+	;;
+	purge)
+		rm -v -i $urlQueue ${tempDirectory}1 ${tempDirectory}1aud ${tempDirectory}1old ${tempDirectory}1audold ${tempDirectory}formats ${tempDirectory}q_hist ${tempDirectory}last_pids
 	;;
 	see)
 		cat $urlQueue
