@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from sys import exit, argv as ARGV
+from sys import argv as ARGV
 from typing import Dict
 from typing import Callable
 from typing import List
@@ -12,9 +12,6 @@ import datetime
 import os
 import argparse
 import streamlink
-
-q_name = "mq" # type: str
-q_hist_name = "q_hist" # type: str
 
 settings = {
 	"quality": 240,
@@ -30,6 +27,9 @@ for key in settings:
 		settings[key] = os.environ[key]
 
 player_args = ["--really-quiet", "--pause", "--keep-open"] # type: List[str]
+q_name = "mq" # type: str
+q_hist_name = "q_hist" # type: str
+
 
 def filePeek(F) -> str:
 	''' Return first line from file object'''
@@ -54,7 +54,6 @@ def filePop(filename: str) -> str:
 	os.remove(tmp_f)
 	if r:
 		r = r.rstrip()
-		fileAppend(os.path.join(settings['TMP'],q_hist_name), r)
 		return r
 
 def fileAppend(filename: str,line: str) -> None:
@@ -64,7 +63,13 @@ def fileAppend(filename: str,line: str) -> None:
 		with open(filename,'a') as f:
 			f.write(l+'\n')
 
-def view_vid(v_dir: str,v_name: str, a_name: str = None) -> None:
+def clearFile(filename: str) -> None:
+	''' empties a file'''
+	open(filename,'w').close()
+
+
+
+def viewVid(v_dir: str,v_name: str, a_name: str = None) -> None:
 	"""	Views download media files using global var player and
 		player args. Takes a_name optionally as audio track."""
 	vid = os.path.join(v_dir,v_name)
@@ -76,8 +81,9 @@ def view_vid(v_dir: str,v_name: str, a_name: str = None) -> None:
 	else:
 		print("No video file exists.")
 
-def push_out(v_dir: str,v_name: str = "1",v_name_old: str = "0") -> None:
-	# displaces last vid by replacing v_name_old with it
+
+def overwriteFile(v_dir: str,v_name: str = "1",v_name_old: str = "0") -> None:
+	''' displaces last vid by replacing v_name_old with it '''
 	old = os.path.join(v_dir,v_name_old) # type: str
 	new = os.path.join(v_dir,v_name) # type: str
 	if os.path.exists(old):
@@ -85,9 +91,89 @@ def push_out(v_dir: str,v_name: str = "1",v_name_old: str = "0") -> None:
 	if os.path.exists(new):
 		os.rename(new,old)
 
-def clear_file(filename: str) -> None:
-	# empties a file
-	open(filename,'w').close()
+
+
+def searchYtFormats(url: str, resolution: int, fmt: str, abr: int):
+	yd = yt_info()
+	print('Getting url data')
+	info = yd.extract_info(url)
+	print('Searching for formats')
+	vidf = get_video_fmt(info, resolution, fmt)
+	audf = get_audio_fmt(info, abr)
+	return (vidf, audf)
+
+def downloadYtFmts(url: str, video: int, audio: int) -> None:
+	vid = YTDownloadThread(url, video, os.path.join(settings['TMP'],'1'), settings['speed'], True)
+	aud = YTDownloadThread(url, audio, os.path.join(settings['TMP'],'1aud'), settings['speed'], True)
+	print('Starting downloads')
+	vid.start()
+	sleep(15)
+	aud.start()
+	sleep(10)
+	viewVid(settings['TMP'],'1','1aud')
+	vid.join()
+	aud.join()
+
+
+def streamlinkDownload(url: str, resolution: int) -> None:
+	"""	Trys to load stream of quality to player"""
+	stream = matchStreamlinkRes(url,str(resolution)+'p')
+	if stream:
+		overwriteFile(settings['TMP'],'1','0')
+		overwriteFile(settings['TMP'],'1aud','0aud')
+		downloader = threading.Thread(
+			target=downloadAStream,
+			args=(stream, os.path.join(settings['TMP'],'1')),
+			daemon=True
+		)
+		downloader.start()
+		sleep(15)
+		viewVid(settings['TMP'], '1')
+		downloader.join()
+
+
+def matchStreamlinkRes(url: str, res: str):
+	streams = streamlink.streams(url)
+	if res in streams:
+		print("Resolution={}".format(res))
+		return streams[quality]
+	else:
+		print("Resolution {} not available.".format(res))
+		return streamlinkFmtChooser(streams)
+
+def streamlinkFmtChooser(streams):
+	print('  '.join(str(q) for q in streams))
+	print('Choose alternative format from above.')
+	choice = None
+	while (choice not in streams):
+		choice = input(':')
+		if not choice:
+			return
+	return streams[choice]
+
+
+def downloadAStream(stream, to: str) -> None:
+	chunkSize = 1024
+	desiredRate = settings['speed']
+	sampleRate = 30
+	stdDelay = (chunkSize/1024)*sampleRate/desiredRate
+	#print('Standard delay: {}'.format(stdDelay))
+	with stream.open() as s, open(to, 'ab') as t:
+		startTime = datetime.datetime.now()
+		d = s.read(chunkSize)
+		i = 1
+		while d:
+			t.write(d)
+			d = s.read(chunkSize)
+			i += 1
+			if i==sampleRate:
+				elapsedTime = (datetime.datetime.now()-startTime).seconds
+				delay = stdDelay-elapsedTime if stdDelay-elapsedTime>0 else stdDelay
+				#print('Sleeping {} seconds! // {}'.format(delay,elapsedTime))
+				sleep(delay)
+				i = 0
+				startTime = datetime.datetime.now()
+
 
 def case_default(args: List[str]) -> None:
 	"""	Default case.
@@ -110,7 +196,7 @@ def case_resume(args: List[str]) -> None:
 
 def case_flush(args: List[str]) -> None:
 	"""		Clears contents of queue. Also creates it if doesn't already exist."""
-	clear_file(os.path.join(settings['TMP'],q_name))
+	clearFile(os.path.join(settings['TMP'],q_name))
 	print("Queue was cleared.")
 
 def case_add(args: List[str]) -> None:
@@ -141,100 +227,23 @@ def case_see(args: List[str]) -> None:
 
 def case_view(args: List[str]) -> None:
 	"""	Launch viewer and player last downloaded video.	"""
-	view_vid(settings['TMP'],'1','1aud')
+	viewVid(settings['TMP'],'1','1aud')
 	print("{:s} Launched.".format(settings['player']))
-
-def searchYtFormats(url: str, resolution: int, fmt: str, abr: int):
-	yd = yt_info()
-	print('Getting url data')
-	info = yd.extract_info(url)
-	print('Searching for formats')
-	vidf = get_video_fmt(info, resolution, fmt)
-	audf = get_audio_fmt(info, abr)
-	return (vidf, audf)
-
-def downloadYtFmts(url: str, video: int, audio: int) -> None:
-	vid = YTDownloadThread(url, video, os.path.join(settings['TMP'],'1'), settings['speed'], True)
-	aud = YTDownloadThread(url, audio, os.path.join(settings['TMP'],'1aud'), settings['speed'], True)
-	print('Starting downloads')
-	vid.start()
-	sleep(15)
-	aud.start()
-	sleep(10)
-	view_vid(settings['TMP'],'1','1aud')
-	vid.join()
-	aud.join()
 
 def case_youtube(args: List[str],resume: bool = False) -> None:
 	"""	Downloads next item in queue or supplied url from args.	"""
 	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
 	if not url:
 		return
+	fileAppend(os.path.join(settings['TMP'],q_hist_name), url)
 	vidf, audf = searchYtFormats(url, settings['quality'], settings['format'], settings['abr'])
 	if not audf or not vidf:
 		print('Formats not found, ending.')
 		return
 	if not resume:
-		push_out(settings['TMP'],'1','0')
-		push_out(settings['TMP'],'1aud','0aud')
+		overwriteFile(settings['TMP'],'1','0')
+		overwriteFile(settings['TMP'],'1aud','0aud')
 	downloadYtFmts(url, vidf, audf)
-
-def interactive_format_choose(streams):
-	print('  '.join(str(q) for q in streams))
-	print('Choose alternative format from above.')
-	choice = None
-	while (choice not in streams):
-		choice = input(':')
-		if not choice:
-			return
-	return streams[choice]
-
-def query_formats(url: str, quality: str):
-	streams = streamlink.streams(url)
-	if quality in streams:
-		print("Quality={}".format(quality))
-		return streams[quality]
-	else:
-		print("Quality {} not available.".format(quality))
-		return interactive_format_choose(streams)
-
-def try_sl(url: str, resolution: int) -> None:
-	"""	Trys to load stream of quality to player"""
-	stream = query_formats(url,str(resolution)+'p')
-	if stream:
-		push_out(settings['TMP'],'1','0')
-		push_out(settings['TMP'],'1aud','0aud')
-		downloader = threading.Thread(
-			target=downloadAStream,
-			args=(stream, os.path.join(settings['TMP'],'1')),
-			daemon=True
-		)
-		downloader.start()
-		sleep(15)
-		view_vid(settings['TMP'], '1')
-		downloader.join()
-
-def downloadAStream(stream, to: str) -> None:
-	chunkSize = 1024
-	desiredRate = settings['speed']
-	sampleRate = 30
-	stdDelay = (chunkSize/1024)*sampleRate/desiredRate
-	#print('Standard delay: {}'.format(stdDelay))
-	with stream.open() as s, open(to, 'ab') as t:
-		startTime = datetime.datetime.now()
-		d = s.read(chunkSize)
-		i = 1
-		while d:
-			t.write(d)
-			d = s.read(chunkSize)
-			i += 1
-			if i==sampleRate:
-				elapsedTime = (datetime.datetime.now()-startTime).seconds
-				delay = stdDelay-elapsedTime if stdDelay-elapsedTime>0 else stdDelay
-				#print('Sleeping {} seconds! // {}'.format(delay,elapsedTime))
-				sleep(delay)
-				i = 0
-				startTime = datetime.datetime.now()
 
 def case_streamlink(args: List[str]) -> None:
 	"""	Tries to play video with streamlink & 'player'
@@ -246,17 +255,14 @@ def case_streamlink(args: List[str]) -> None:
 	if not url or not quality:
 		print("URL or quality is required but missing.")
 	else:
-		try_sl(url,quality)
+		fileAppend(os.path.join(settings['TMP'],q_hist_name), url)
+		streamlinkDownload(url,quality)
 
 class MainParser:
 	def __init__(self):
 		# url as task should be intercepted in-lieu of MainParser
 		self.parser = argparse.ArgumentParser('File-queue caller system')
 		self.tasks = self.parser.add_subparsers(title='Subcommand', help='Task for fq_t to perform')
-
-		self.goTask = self.tasks.add_parser('go', help='Download arg or on queue')
-		self.goTask.set_defaults(func=case_default)
-		#self.goTask.add_argument('--url', help='Url to download')
 
 		self.viewTask = self.tasks.add_parser('view', help='View latest video downloaded')
 		self.viewTask.set_defaults(func=case_view)
