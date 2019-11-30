@@ -3,15 +3,14 @@ from sys import argv as ARGV
 from typing import Dict
 from typing import Callable
 from typing import List
-from yt_dl_urls import YTDownloadThread, get_audio_fmt, get_video_fmt, yt_info, FileAlreadyExistsException
 from tempfile import mktemp
 from subprocess import Popen
 from time import sleep
-import threading
-import datetime
+from threading import Thread
+from datetime import datetime
+from argparse import ArgumentParser
 import os
-import argparse
-import streamlink
+
 
 settings = {
 	"quality": 240,
@@ -99,6 +98,7 @@ def overwriteFile(v_dir: str,v_name: str = "1",v_name_old: str = "0") -> None:
 
 
 def searchYtFormats(url: str, resolution: int, fmt: str, abr: int):
+	from yt_dl_urls import get_audio_fmt, get_video_fmt, yt_info
 	yd = yt_info()
 	print('Getting url data')
 	info = yd.extract_info(url)
@@ -108,18 +108,33 @@ def searchYtFormats(url: str, resolution: int, fmt: str, abr: int):
 	print('Found! v {}, a {}'.format(vidf,audf))
 	return (vidf, audf)
 
-def downloadYtFmts(url: str, video: int, audio: int) -> None:
-	vid = YTDownloadThread(url, video, os.path.join(settings['TMP'],'1'), settings['speed'], True)
-	aud = YTDownloadThread(url, audio, os.path.join(settings['TMP'],'1aud'), settings['speed'], True)
+def downloadYtFmts(url: str, video: int, audio: int):
+	from yt_dl_urls import YTDownloadThread
+	joiner = BabySitter()
+	joiner.addTask(YTDownloadThread(url, video, os.path.join(settings['TMP'],'1'), settings['speed'], True))
+	joiner.addTask(YTDownloadThread(url, audio, os.path.join(settings['TMP'],'1aud'), settings['speed'], True))
 	print('Starting downloads')
-	vid.start()
+	joiner.start()
 	sleep(15)
-	aud.start()
+	joiner.start()
 	sleep(10)
-	viewVid(settings['TMP'],'1','1aud')
-	vid.join()
-	aud.join()
+	return joiner
 
+
+class BabySitter:
+	def __init__(self):
+		self.tasks = []
+		self.startedTasks = []
+	def addTask(self, task):
+		self.tasks.append(task)
+	def start(self):
+		if self.tasks:
+			task = self.tasks.pop()
+			task.start()
+			self.startedTasks.append(task)
+	def sit(self):
+		for t in self.startedTasks:
+			t.join()
 
 def streamlinkDownload(url: str, resolution: int, resume: bool=False) -> None:
 	"""	Trys to load stream of quality to player"""
@@ -131,20 +146,21 @@ def streamlinkDownload(url: str, resolution: int, resume: bool=False) -> None:
 		else:
 			overwriteFile(settings['TMP'],'1','0')
 			overwriteFile(settings['TMP'],'1aud','0aud')
-		downloader = threading.Thread(
-			target=downloadAStream,
-			args=(stream, os.path.join(settings['TMP'],'1'), resume),
-			daemon=True
+		joiner = BabySitter()
+		joiner.addTask(
+			Thread(
+				target=downloadAStream,
+				args=(stream, os.path.join(settings['TMP'],'1'), resume),
+				daemon=True
+			)
 		)
-		downloader.start()
+		joiner.start()
 		sleep(15)
-		viewVid(settings['TMP'], '1')
-		downloader.join()
-		print('Download completed')
-
+		return joiner
 
 def matchStreamlinkRes(url: str, res: str):
-	streams = streamlink.streams(url)
+	from streamlink import streams
+	streams = streams(url)
 	if res in streams:
 		print("Resolution={}".format(res))
 		return streams[res]
@@ -173,7 +189,7 @@ def downloadAStream(stream, to: str, resume: bool) -> None:
 		if resume and s.seekable():
 			pos = os.path.getsize(to)
 			s.seek(pos)
-		startTime = datetime.datetime.now()
+		startTime = datetime.now()
 		d = s.read(chunkSize)
 		i = 1
 		while d:
@@ -181,12 +197,12 @@ def downloadAStream(stream, to: str, resume: bool) -> None:
 			d = s.read(chunkSize)
 			i += 1
 			if i==sampleRate:
-				elapsedTime = (datetime.datetime.now()-startTime).seconds
+				elapsedTime = (datetime.now()-startTime).seconds
 				delay = stdDelay-elapsedTime if stdDelay-elapsedTime>0 else stdDelay
 				#print('Sleeping {} seconds! // {}'.format(delay,elapsedTime))
 				sleep(delay)
 				i = 0
-				startTime = datetime.datetime.now()
+				startTime = datetime.now()
 
 
 def case_flush(args: List[str]) -> None:
@@ -258,18 +274,23 @@ def serYoutube(url: str, resume: bool = False) -> None:
 	if not resume:
 		overwriteFile(settings['TMP'],'1','0')
 		overwriteFile(settings['TMP'],'1aud','0aud')
-	downloadYtFmts(url, vidf, audf)
+	joiner = downloadYtFmts(url, vidf, audf)
+	viewVid(settings['TMP'],'1','1aud')
+	joiner.sit()
 
 def serStreamlink(url: str,resume: bool = False) -> None:
 	""" Downloads video with aid from streamlink"""
 	print('Using streamlink with URL={}'.format(url))
 	qhist.enqueue(url)
-	streamlinkDownload(url,int(settings["quality"]), resume)
+	joiner = streamlinkDownload(url,int(settings["quality"]), resume)
+	if joiner:
+		viewVid(settings['TMP'],'1')
+		joiner.sit()
 
 class MainParser:
 	def __init__(self):
 		# url as task should be intercepted in-lieu of MainParser
-		self.parser = argparse.ArgumentParser('File-queue caller system')
+		self.parser = ArgumentParser('File-queue caller system')
 		self.tasks = self.parser.add_subparsers(title='Subcommand', help='Task for fq_t to perform')
 
 		self.viewTask = self.tasks.add_parser('view', help='View latest video downloaded')
