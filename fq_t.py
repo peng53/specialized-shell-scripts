@@ -55,6 +55,10 @@ def filePop(filename: str) -> str:
 	if r:
 		r = r.rstrip()
 		return r
+	raise PopOnEmptyQueueException
+
+class PopOnEmptyQueueException(Exception):
+	pass
 
 def fileAppend(filename: str,line: str) -> None:
 	"""Appends line to file f_name residing in f_dir."""
@@ -115,28 +119,33 @@ def downloadYtFmts(url: str, video: int, audio: int) -> None:
 	aud.join()
 
 
-def streamlinkDownload(url: str, resolution: int) -> None:
+def streamlinkDownload(url: str, resolution: int, resume: bool=False) -> None:
 	"""	Trys to load stream of quality to player"""
 	stream = matchStreamlinkRes(url,str(resolution)+'p')
 	if stream:
-		overwriteFile(settings['TMP'],'1','0')
-		overwriteFile(settings['TMP'],'1aud','0aud')
+		if resume:
+			print('Resume not supported.')
+			return
+		else:
+			overwriteFile(settings['TMP'],'1','0')
+			overwriteFile(settings['TMP'],'1aud','0aud')
 		downloader = threading.Thread(
 			target=downloadAStream,
-			args=(stream, os.path.join(settings['TMP'],'1')),
+			args=(stream, os.path.join(settings['TMP'],'1'), resume),
 			daemon=True
 		)
 		downloader.start()
 		sleep(15)
 		viewVid(settings['TMP'], '1')
 		downloader.join()
+		print('Download completed')
 
 
 def matchStreamlinkRes(url: str, res: str):
 	streams = streamlink.streams(url)
 	if res in streams:
 		print("Resolution={}".format(res))
-		return streams[quality]
+		return streams[res]
 	else:
 		print("Resolution {} not available.".format(res))
 		return streamlinkFmtChooser(streams)
@@ -152,13 +161,16 @@ def streamlinkFmtChooser(streams):
 	return streams[choice]
 
 
-def downloadAStream(stream, to: str) -> None:
+def downloadAStream(stream, to: str, resume: bool) -> None:
 	chunkSize = 1024
 	desiredRate = settings['speed']
 	sampleRate = 30
 	stdDelay = (chunkSize/1024)*sampleRate/desiredRate
 	#print('Standard delay: {}'.format(stdDelay))
 	with stream.open() as s, open(to, 'ab') as t:
+		if resume and s.seekable():
+			pos = os.path.getsize(to)
+			s.seek(pos)
 		startTime = datetime.datetime.now()
 		d = s.read(chunkSize)
 		i = 1
@@ -174,25 +186,6 @@ def downloadAStream(stream, to: str) -> None:
 				i = 0
 				startTime = datetime.datetime.now()
 
-
-def case_default(args: List[str]) -> None:
-	"""	Default case.
-		Downloads next item in queue.
-		Auto detects what to use."""
-	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
-	if url.find("youtube.com/")>=0: # its a me, youtube
-		case_youtube([None,url],resume=False)
-	elif url.find("crunchyroll.com/")>=0: # its a me, me
-		quality = args[1] if len(args)>2 else settings["quality"]
-		case_streamlink([None,url,quality])
-	else:
-		print("Url unrecognized or empty.")
-
-def case_resume(args: List[str]) -> None:
-	"""	Resumes download of last video. Requires url to be in args OR as next item in queue.
-		Downloads regardless of wheter the url corresponds to last video."""
-	print("Resuming video download.")
-	case_youtube(args,resume=True)
 
 def case_flush(args: List[str]) -> None:
 	"""		Clears contents of queue. Also creates it if doesn't already exist."""
@@ -230,7 +223,38 @@ def case_view(args: List[str]) -> None:
 	viewVid(settings['TMP'],'1','1aud')
 	print("{:s} Launched.".format(settings['player']))
 
-def case_youtube(args: List[str],resume: bool = False) -> None:
+def case_resume(args: List[str]) -> None:
+	"""	Resumes download of last video. Requires url to be in args OR as next item in queue.
+		Downloads regardless of wheter the url corresponds to last video."""
+	print("Resuming video download.")
+	case_default(args,resume=True)
+
+def case_default(args: List[str], resume: bool=False) -> None:
+	"""	Default case.
+		Downloads next item in queue."""
+	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
+	if not url:
+		serNull(args)
+		return
+	f = autoServicer(url)
+	f([None, url], resume)
+
+def autoServicer(url: str) -> Callable:
+	"""Auto detects what to use."""
+	searchStringsPairs = {
+		"youtube.com/" : serYoutube,
+		"crunchyroll.com/" : serStreamlink,
+	}
+	for s in searchStringsPairs:
+		if url.find(s)>=0:
+			return searchStringsPairs[s]
+	return serNull
+
+def serNull(args: List[str]) -> None:
+	''' Called when url doesn't match any servicer'''
+	print("Url unrecognized or empty")
+
+def serYoutube(args: List[str],resume: bool = False) -> None:
 	"""	Downloads next item in queue or supplied url from args.	"""
 	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
 	if not url:
@@ -245,18 +269,15 @@ def case_youtube(args: List[str],resume: bool = False) -> None:
 		overwriteFile(settings['TMP'],'1aud','0aud')
 	downloadYtFmts(url, vidf, audf)
 
-def case_streamlink(args: List[str]) -> None:
-	"""	Tries to play video with streamlink & 'player'
-		args in additon to 'sl' can contain URL and quality.
-		args[1] is ALWAYS the quality. If getting url from q_file,
-		quality must be set in enviroment."""
+def serStreamlink(args: List[str],resume: bool = False) -> None:
+	""" Downloads video with aid from streamlink"""
 	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
-	quality = args[2] if len(args)>2 else settings["quality"] # type: str
-	if not url or not quality:
-		print("URL or quality is required but missing.")
+	if not url:
+		return
 	else:
+		print('Using streamlink with URL={}'.format(url))
 		fileAppend(os.path.join(settings['TMP'],q_hist_name), url)
-		streamlinkDownload(url,quality)
+		streamlinkDownload(url,settings["quality"], resume)
 
 class MainParser:
 	def __init__(self):
