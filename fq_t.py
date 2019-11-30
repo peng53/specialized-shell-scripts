@@ -136,27 +136,25 @@ class BabySitter:
 		for t in self.startedTasks:
 			t.join()
 
-def streamlinkDownload(url: str, resolution: int, resume: bool=False) -> None:
+def streamlinkDownload(stream, to: str, resume: bool=False) -> None:
 	"""	Trys to load stream of quality to player"""
-	stream = matchStreamlinkRes(url,str(resolution)+'p')
-	if stream:
-		if resume:
-			print('Resume not supported.')
-			return
-		else:
-			overwriteFile(settings['TMP'],'1','0')
-			overwriteFile(settings['TMP'],'1aud','0aud')
-		joiner = BabySitter()
-		joiner.addTask(
-			Thread(
-				target=downloadAStream,
-				args=(stream, os.path.join(settings['TMP'],'1'), resume),
-				daemon=True
-			)
+	if resume:
+		print('Resume not supported.')
+		return
+	else:
+		overwriteFile(settings['TMP'],'1','0')
+		overwriteFile(settings['TMP'],'1aud','0aud')
+	joiner = BabySitter()
+	joiner.addTask(
+		Thread(
+			target=downloadAStream,
+			args=(stream, to, resume),
+			daemon=True
 		)
-		joiner.start()
-		sleep(15)
-		return joiner
+	)
+	joiner.start()
+	sleep(15)
+	return joiner
 
 def matchStreamlinkRes(url: str, res: str):
 	from streamlink import streams
@@ -282,7 +280,10 @@ def serStreamlink(url: str,resume: bool = False) -> None:
 	""" Downloads video with aid from streamlink"""
 	print('Using streamlink with URL={}'.format(url))
 	qhist.enqueue(url)
-	joiner = streamlinkDownload(url,int(settings["quality"]), resume)
+	stream = matchStreamlinkRes(url,str(settings['quality'])+'p')
+	if not stream:
+		return
+	joiner = streamlinkDownload(stream, os.path.join(settings['TMP'],'1'), resume)
 	if joiner:
 		viewVid(settings['TMP'],'1')
 		joiner.sit()
