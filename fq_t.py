@@ -30,47 +30,48 @@ player_args = ["--really-quiet", "--pause", "--keep-open"] # type: List[str]
 q_name = "mq" # type: str
 q_hist_name = "q_hist" # type: str
 
+class FileQueue:
+	def __init__(self, fullpath: str):
+		self.fullpath = fullpath
 
-def filePeek(F) -> str:
-	''' Return first line from file object'''
-	return F.readline()
-
-def filePop(filename: str) -> str:
-	''' removes first line from file and return it '''
-	if not os.path.exists(filename):
-		print("Queue file does not exist.")
-		return
-	tmp_f = mktemp(dir=settings['TMP']) # type: str
-	os.rename(filename,tmp_f)
-	r = None # type: str
-	with open(tmp_f,'r') as f, open(filename,'w') as g:
-		"""This block sets r to the first line
-			and then writes the rest to 'new' tmpfile"""
-		l = f.readline() # type: str
-		r = l
-		while l:
-			l = f.read(1024)
-			g.write(l)
-	os.remove(tmp_f)
-	if r:
-		r = r.rstrip()
-		return r
-	raise PopOnEmptyQueueException
+	def front(self):
+		with open(self.fullpath,'r') as f:
+			return f.readline()
+	
+	def dequeue(self):
+		tmp_f = mktemp(dir=settings['TMP']) # type: str
+		os.rename(self.fullpath, tmp_f)
+		r = None
+		with open(tmp_f,'r') as f, open(self.fullpath,'w') as g:
+			"""This block sets r to the first line
+				and then writes the rest to 'new' tmpfile"""
+			l = f.readline() # type: str
+			r = l
+			while l:
+				l = f.read(1024)
+				g.write(l)
+		os.remove(tmp_f)
+		if r:
+			r = r.rstrip()
+			return r
+		raise PopOnEmptyQueueException
+	
+	def enqueue(self, line: str):
+		l = line.rstrip()
+		if l:
+			with open(self.fullpath, 'a') as f:
+				f.write(l+'\n')
+	
+	def clear(self):
+		open(self.fullpath,'w').close()
+	
+	def print_items(self):
+		with open(self.fullpath,'r') as f:
+			for l in f:
+				print(l,end='')
 
 class PopOnEmptyQueueException(Exception):
 	pass
-
-def fileAppend(filename: str,line: str) -> None:
-	"""Appends line to file f_name residing in f_dir."""
-	l = line.rstrip() # type: str
-	if l:
-		with open(filename,'a') as f:
-			f.write(l+'\n')
-
-def clearFile(filename: str) -> None:
-	''' empties a file'''
-	open(filename,'w').close()
-
 
 
 def viewVid(v_dir: str,v_name: str, a_name: str = None) -> None:
@@ -104,6 +105,7 @@ def searchYtFormats(url: str, resolution: int, fmt: str, abr: int):
 	print('Searching for formats')
 	vidf = get_video_fmt(info, resolution, fmt)
 	audf = get_audio_fmt(info, abr)
+	print('Found! v {}, a {}'.format(vidf,audf))
 	return (vidf, audf)
 
 def downloadYtFmts(url: str, video: int, audio: int) -> None:
@@ -189,34 +191,25 @@ def downloadAStream(stream, to: str, resume: bool) -> None:
 
 def case_flush(args: List[str]) -> None:
 	"""		Clears contents of queue. Also creates it if doesn't already exist."""
-	clearFile(os.path.join(settings['TMP'],q_name))
+	qfile.clear()
 	print("Queue was cleared.")
 
 def case_add(args: List[str]) -> None:
 	"""	Adds item to queue."""
-	if len(args)>1 and len(args[1])>0:
-		url = args[1]
-		fileAppend(os.path.join(settings['TMP'],q_name),url)
-	else:
-		print("URL was blank.")
+	url = args[1]
+	qfile.enqueue(url)
 
 def case_top(args: List[str]) -> None:
 	"""	Print next item in queue if possible."""
-	qfile = os.path.join(settings['TMP'],q_name)
-	if os.path.exists(qfile):
-		url = filePeek(open(qfile,'r')) # type: str
-		if url:
-			print(url.rstrip())
-			return
-	print("Queue was empty.")
+	url = qfile.front()
+	if url:
+		print(url.rstrip())
+	else:
+		print('Queue was empty')
 
 def case_see(args: List[str]) -> None:
 	"""	Print queue contents to stdout.	"""
-	qfile = os.path.join(settings['TMP'],q_name) # type: str
-	if os.path.exists(qfile):
-		with open(qfile,'r') as f:
-			for l in f:
-				print(l,end='')
+	qfile.print_items()
 
 def case_view(args: List[str]) -> None:
 	"""	Launch viewer and player last downloaded video.	"""
@@ -232,12 +225,13 @@ def case_resume(args: List[str]) -> None:
 def case_default(args: List[str], resume: bool=False) -> None:
 	"""	Default case.
 		Downloads next item in queue."""
-	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
-	if not url:
-		serNull(args)
-		return
-	f = autoServicer(url)
-	f([None, url], resume)
+	url = args[1] if len(args)>1 else qfile.dequeue()
+	if url:
+		f = autoServicer(url)
+		f(url, resume)
+	else:
+		serNull(url)
+
 
 def autoServicer(url: str) -> Callable:
 	"""Auto detects what to use."""
@@ -250,17 +244,14 @@ def autoServicer(url: str) -> Callable:
 			return searchStringsPairs[s]
 	return serNull
 
-def serNull(args: List[str]) -> None:
+def serNull(url: str) -> None:
 	''' Called when url doesn't match any servicer'''
 	print("Url unrecognized or empty")
 
-def serYoutube(args: List[str],resume: bool = False) -> None:
+def serYoutube(url: str, resume: bool = False) -> None:
 	"""	Downloads next item in queue or supplied url from args.	"""
-	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
-	if not url:
-		return
-	fileAppend(os.path.join(settings['TMP'],q_hist_name), url)
-	vidf, audf = searchYtFormats(url, settings['quality'], settings['format'], settings['abr'])
+	qhist.enqueue(url)
+	vidf, audf = searchYtFormats(url, int(settings['quality']), settings['format'], int(settings['abr']))
 	if not audf or not vidf:
 		print('Formats not found, ending.')
 		return
@@ -269,15 +260,11 @@ def serYoutube(args: List[str],resume: bool = False) -> None:
 		overwriteFile(settings['TMP'],'1aud','0aud')
 	downloadYtFmts(url, vidf, audf)
 
-def serStreamlink(args: List[str],resume: bool = False) -> None:
+def serStreamlink(url: str,resume: bool = False) -> None:
 	""" Downloads video with aid from streamlink"""
-	url = args[1] if len(args)>1 else filePop(os.path.join(settings['TMP'],q_name)) # type: str
-	if not url:
-		return
-	else:
-		print('Using streamlink with URL={}'.format(url))
-		fileAppend(os.path.join(settings['TMP'],q_hist_name), url)
-		streamlinkDownload(url,settings["quality"], resume)
+	print('Using streamlink with URL={}'.format(url))
+	qhist.enqueue(url)
+	streamlinkDownload(url,int(settings["quality"]), resume)
 
 class MainParser:
 	def __init__(self):
@@ -305,6 +292,8 @@ class MainParser:
 		t.func(args)
 
 if __name__=='__main__':
+	qfile = FileQueue(os.path.join(settings['TMP'],q_name))
+	qhist = FileQueue(os.path.join(settings['TMP'],q_hist_name))
 	if len(ARGV)==1:
 		case_default([])
 	elif len(ARGV)==2 and ARGV[1].startswith('http'):
