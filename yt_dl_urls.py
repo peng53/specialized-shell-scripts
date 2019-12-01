@@ -22,19 +22,10 @@ def download_dash_yt(url: str, vheight: int, vfmt: str, abr: int, outdir: str, n
 	if not fmts:
 		return 1
 	vidt = yt_download_thread(url, fmts[0], os.path.join(outdir, names[0]), speed)
-	audt = yt_download_thread(url, fmts[1], os.path.join(outdir, names[1]), speed)
 	vidt.start()
-	audt.start()
+	yt_download_fmt(url, fmts[1], os.path.join(outdir, names[1]), speed) # audio download
 	vidt.join()
-	audt.join()
 	return 0
-
-def yt_download_thread(url: str, fmt: str, out: str, speed: float) -> threading.Thread:
-	return threading.Thread(
-		target=yt_download_fmt,
-		args=(url, fmt, out, speed),
-		daemon=True,
-	)
 
 def exist_dash_yt(url: str, vheight: int, vfmt: str, abr: int):
 	''' Returns whether such a dash video/audio
@@ -60,6 +51,13 @@ def get_audio_fmt(info, abr: int):
 	codes_n_abr = ((m['format_id'], m['abr']) for m in matches)
 	amatch = max(codes_n_abr, key=lambda x: x[1])
 	return amatch[0] if amatch else None
+
+def yt_download_thread(url: str, fmt: str, out: str, speed: float) -> threading.Thread:
+	return threading.Thread(
+		target=yt_download_fmt,
+		args=(url, fmt, out, speed),
+		daemon=True,
+	)
 
 def yt_download_fmt(url: str, fmt: str, out: str, ratelimit: float, quiet: bool=True):
 	downloader = yt_download_obj(fmt,out,ratelimit,quiet)
@@ -111,7 +109,7 @@ class FileAlreadyExistsException(Exception):
 class MainParser:
 	def __init__(self):
 		self.parser = argparse.ArgumentParser('Perform certain tasks with youtube-dl api')
-		self.parser.add_argument('-v', '--verbose', help='Causes more output to stdout', default=False, action='store_false')
+		self.parser.add_argument('-v', '--verbose', help='Causes more output to stdout', action='store_true')
 		self.parser.add_argument('task', type=str, help='Task to be completed with URL', choices=['exists', 'download'])
 		self.vidparams = self.parser.add_argument_group('Video Params', description='params that describe the desired video.')
 		self.vidparams.add_argument('url', type=str, help='Video URL')
@@ -119,7 +117,7 @@ class MainParser:
 		self.vidparams.add_argument('--res', type=int, help='Video vertical resolution')
 		self.vidparams.add_argument('-a', '--abr', type=int, help='Max audio bitrate')
 
-		self.vidparams.add_argument('-o', '--out', type=str, help='Download directory', default=os.path.join(os.getcwd(),'out'))
+		self.vidparams.add_argument('-o', '--out', type=str, help='Download directory', default=os.getcwd())
 		self.vidparams.add_argument('-r', '--rate', type=int, help='Download rate in KB/S', default=None)
 
 	def parse(self, args):
@@ -137,7 +135,15 @@ def main(argv):
 				print(f'No combo exists with res={t.res}, fmt={t.fmt}, and abr={t.abr}')
 		return 0 if fmts else 1
 	elif t.task=='download':
-		return download_dash_yt(t.url, t.res, t.fmt, t.abr, t.out, ('1','1aud'), t.rate)
+		names = ('1','1aud')
+		for fn in names:
+			if os.path.exists(os.path.join(t.out, fn)):
+				if t.verbose:
+					print(f'{os.path.join(t.out,fn)} already exists')
+				return 2
+		if t.verbose:
+			print('Starting downloads')
+		return download_dash_yt(t.url, t.res, t.fmt, t.abr, t.out, names, t.rate)
 	return 0
 
 if __name__=='__main__':
