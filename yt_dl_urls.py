@@ -5,7 +5,7 @@ import argparse
 import youtube_dl
 import os
 import threading
-
+from collections import namedtuple
 
 def yt_info():
 	''' Returns YoutubeDL object for searching formats '''
@@ -17,15 +17,24 @@ def yt_info():
 		}
 	)
 
-def download_dash_yt(url: str, vheight: int, vfmt: str, abr: int, outdir: str, names: Tuple[str,str], speed: float=45):
+FmtInfo = namedtuple('YTFmtInfo', 'code, path, speed') # type: Tuple[str,str,float]
+
+def download_dash_yt(url: str, vheight: int, vfmt: str, abr: int, outdir: str, names: Tuple[str,str], speed: float=45) -> int:
 	fmts = exist_dash_yt(url, vheight, vfmt, abr)
 	if not fmts:
 		return 1
-	vidt = yt_download_thread(url, fmts[0], os.path.join(outdir, names[0]), speed)
-	vidt.start()
-	yt_download_fmt(url, fmts[1], os.path.join(outdir, names[1]), speed) # audio download
-	vidt.join()
+	download_by_threads(
+		url,
+		FmtInfo(fmts[0], os.path.join(outdir, names[0]), speed),
+		FmtInfo(fmts[1], os.path.join(outdir, names[1]), speed),
+	)
 	return 0
+
+def download_by_threads(url: str, vidInfo: FmtInfo, audInfo: FmtInfo):
+	vidt = yt_download_thread(url, vidInfo.code, vidInfo.path, vidInfo.speed)
+	vidt.start()
+	yt_download_fmt(url, audInfo.code, audInfo.path, audInfo.speed) # audio download
+	vidt.join()
 
 def exist_dash_yt(url: str, vheight: int, vfmt: str, abr: int):
 	''' Returns whether such a dash video/audio
