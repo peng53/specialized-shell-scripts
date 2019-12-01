@@ -171,49 +171,27 @@ def serNull(url: str) -> None:
 
 
 def serYoutube(url: str, resume: bool = False) -> None:
-	"""	Downloads next item in queue or supplied url from args.	"""
+	from yt_dl_urls import exist_dash_yt, download_by_threads, FmtInfo
 	qhist.enqueue(url)
-	vidf, audf = searchYtFormats(url, int(settings['quality']), settings['format'], int(settings['abr']))
-	if not audf or not vidf:
+	fmts = exist_dash_yt(url, int(settings['quality']), settings['format'], int(settings['abr']))
+	if not fmts:
 		print('Formats not found, ending.')
 		return
 	if not resume:
 		overwriteFile(settings['TMP'],'1','0')
 		overwriteFile(settings['TMP'],'1aud','0aud')
-	joiner = downloadYtFmts(url, vidf, audf)
+	downloader = Thread(
+		target=download_by_threads,
+		args=(
+			url,
+			FmtInfo(fmts[0], os.path.join(settings['TMP'], '1'), float(settings['speed'])),
+			FmtInfo(fmts[1], os.path.join(settings['TMP'], '1aud'), float(settings['speed']))
+		)
+	)
+	downloader.start()
+	sleep(40)
 	viewVid(settings['TMP'],'1','1aud')
-	joiner.sit()
-
-def searchYtFormats(url: str, resolution: int, fmt: str, abr: int) -> Tuple[int,int]:
-	from yt_dl_urls import get_audio_fmt, get_video_fmt, yt_info
-	yd = yt_info()
-	print('Getting url data')
-	info = yd.extract_info(url)
-	print('Searching for formats')
-	vidf = get_video_fmt(info, resolution, fmt)
-	audf = get_audio_fmt(info, abr)
-	print(f'Found! v {vidf}, a {audf}')
-	return (vidf, audf)
-
-def downloadYtFmts(url: str, video: int, audio: int) -> BabySitter:
-	from yt_dl_urls import YTDownloadThread
-	joiner = BabySitter()
-	vid = YTDownloadThread(url, video, os.path.join(settings['TMP'],'1'), settings['speed'], False)
-	aud = YTDownloadThread(url, audio, os.path.join(settings['TMP'],'1aud'), settings['speed'], False)
-	print('Starting downloads')
-	joiner.addTask(vid)
-	joiner.addTask(aud)
-	vid.start()
-	#joiner.start()
-	sleep(15)
-	aud.start()
-	#joiner.start()
-	sleep(10)
-	viewVid(settings['TMP'],'1','1aud')
-	vid.join()
-	aud.join()
-	return BabySitter()
-
+	downloader.join()
 
 def serStreamlink(url: str,resume: bool = False) -> None:
 	""" Downloads video with aid from streamlink"""
