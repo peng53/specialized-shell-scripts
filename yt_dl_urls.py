@@ -30,11 +30,11 @@ def get_audio_fmt(info, abr: int):
 	amatch = max(codes_n_abr, key=lambda x: x[1])
 	return amatch[0] if amatch else None
 
-class DownloadThread(threading.Thread):
+class YTDownloadThread(threading.Thread):
 	def __init__(self, url: str, fmt: int, out: str, ratelimit: int, quiet=True):
 		if os.path.exists(out):
 			raise FileAlreadyExistsException
-		super(DownloadThread, self).__init__()
+		super(YTDownloadThread, self).__init__()
 		self.url = url
 		self.args = {
 			"call_home": False,
@@ -94,14 +94,14 @@ def main(argv):
 	elif t.task=='download':
 		threads = []
 		if t.res:
-			vidt = DownloadThread(t.url, vidf, t.out, t.rate, t.verbose)
+			vidt = YTDownloadThread(t.url, vidf, t.out, t.rate, t.verbose)
 			if t.verbose:
-				print('{} To file {}'.format(vidf, t.out))
+				print(f'{vidf} To file {t.out}')
 			threads.append(vidt)
 		if t.abr:
-			audt = DownloadThread(t.url, audf, t.out+'aud', t.rate, t.verbose)
+			audt = YTDownloadThread(t.url, audf, t.out+'aud', t.rate, t.verbose)
 			if t.verbose:
-				print('{} To file {}'.format(audf, t.out))
+				print(f'{audf} To file {t.out}')
 			threads.append(audt)
 
 		for t in threads:
