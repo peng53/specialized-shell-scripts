@@ -1,5 +1,6 @@
 from sys import argv, exit
 from time import sleep
+from typing import Tuple
 import argparse
 import youtube_dl
 import os
@@ -16,6 +17,36 @@ def yt_info():
 		}
 	)
 
+def download_dash_yt(url: str, vheight: int, vfmt: str, abr: int, outdir: str, names: Tuple[str,str], speed: float=45):
+	fmts = exist_dash_yt(url, vheight, vfmt, abr)
+	if not fmts:
+		return 1
+	vidt = yt_download_thread(url, fmts[0], os.path.join(outdir, names[0]), speed)
+	audt = yt_download_thread(url, fmts[1], os.path.join(outdir, names[1]), speed)
+	vidt.start()
+	audt.start()
+	vidt.join()
+	audt.join()
+	return 0
+
+def yt_download_thread(url: str, fmt: str, out: str, speed: float) -> threading.Thread:
+	return threading.Thread(
+		target=yt_download_fmt,
+		args=(url, fmt, out, speed),
+		daemon=True,
+	)
+
+def exist_dash_yt(url: str, vheight: int, vfmt: str, abr: int):
+	''' Returns whether such a dash video/audio
+		combo exists and if so return them'''
+	info = yt_info().extract_info(url)
+	vidf = get_video_fmt(info, vheight, vfmt)
+	if vidf:
+		audf = get_audio_fmt(info, abr)
+		if audf:
+			return (vidf,audf)
+	return None
+
 def get_video_fmt(info, vheight: int, vfmt: str):
 	''' Return video fmt with vheight and vfmt '''
 	vids = filter(lambda d: d['vcodec']!='none' and d['acodec']=='none' and d['ext']==vfmt, info['formats'])
@@ -30,8 +61,27 @@ def get_audio_fmt(info, abr: int):
 	amatch = max(codes_n_abr, key=lambda x: x[1])
 	return amatch[0] if amatch else None
 
+def yt_download_fmt(url: str, fmt: str, out: str, ratelimit: float, quiet: bool=True):
+	downloader = yt_download_obj(fmt,out,ratelimit,quiet)
+	downloader.download([url])
+
+def yt_download_obj(fmt: str, out: str, ratelimit: float, quiet: bool=True):
+	''' Returns YoutubeDL object meant for downloading'''
+	return youtube_dl.YoutubeDL(
+		{
+			"call_home": False,
+			'nopart': True,
+			'continuedl': True,
+			'format': fmt,
+			'outtmpl': out,
+			'ratelimit': ratelimit*1024,
+			"quiet": quiet,
+		}
+	)
+
+
 class YTDownloadThread(threading.Thread):
-	def __init__(self, url: str, fmt: int, out: str, ratelimit: int, quiet=True):
+	def __init__(self, url: str, fmt: int, out: str, ratelimit: int, quiet: bool=True):
 		if os.path.exists(out):
 			raise FileAlreadyExistsException
 		super(YTDownloadThread, self).__init__()
@@ -78,39 +128,16 @@ class MainParser:
 
 def main(argv):
 	t = MainParser().parse(argv[1:])
-	yd = yt_info()
-	info = yd.extract_info(t.url)
-
-	vidf = get_video_fmt(info, t.res, t.fmt) if t.res else None
-	audf = get_audio_fmt(info, t.abr) if t.abr else None
-	success = True if ((not t.res or vidf) and (not t.abr or audf)) else False
-
-	if not success:
-		if t.verbose:
-			print('Could not find format(s) matching.')
-		return 1
 	if t.task=='exists':
-		return 0
+		fmts = exist_dash_yt(t.url, t.res, t.fmt, t.abr)
+		if t.verbose:
+			if fmts:
+				print(f'Combo exists! (vid,aud): {fmts}')
+			else:
+				print(f'No combo exists with res={t.res}, fmt={t.fmt}, and abr={t.abr}')
+		return 0 if fmts else 1
 	elif t.task=='download':
-		threads = []
-		if t.res:
-			vidt = YTDownloadThread(t.url, vidf, t.out, t.rate, t.verbose)
-			if t.verbose:
-				print(f'{vidf} To file {t.out}')
-			threads.append(vidt)
-		if t.abr:
-			audt = YTDownloadThread(t.url, audf, t.out+'aud', t.rate, t.verbose)
-			if t.verbose:
-				print(f'{audf} To file {t.out}')
-			threads.append(audt)
-
-		for t in threads:
-			t.start()
-
-		for t in threads:
-			t.join()
-			if t.exception:
-				raise Exception
+		return download_dash_yt(t.url, t.res, t.fmt, t.abr, t.out, ('1','1aud'), t.rate)
 	return 0
 
 if __name__=='__main__':
