@@ -86,32 +86,6 @@ def yt_download_obj(fmt: str, out: str, ratelimit: float, quiet: bool=True):
 		}
 	)
 
-
-class YTDownloadThread(threading.Thread):
-	def __init__(self, url: str, fmt: int, out: str, ratelimit: int, quiet: bool=True):
-		if os.path.exists(out):
-			raise FileAlreadyExistsException
-		super(YTDownloadThread, self).__init__()
-		self.url = url
-		self.args = {
-			"call_home": False,
-			"quiet": quiet,
-			'format': fmt,
-			'outtmpl': out,
-			'nopart': True,
-			'ratelimit': ratelimit*1024,
-			'continuedl': True
-		}
-		self.exception = None
-		self.done = False
-	def run(self):
-		downloader = youtube_dl.YoutubeDL(self.args)
-		try:
-			downloader.download([self.url])
-		except Exception as e:
-			self.exception = e
-		self.done = True
-
 class FileAlreadyExistsException(Exception):
 	pass
 
