@@ -137,23 +137,6 @@ def case_default(args: List[str], resume: bool=False) -> None:
 	else:
 		serNull(url)
 
-class BabySitter:
-	def __init__(self):
-		self.tasks = []
-		self.startedTasks = []
-	def addTask(self, task):
-		self.tasks.append(task)
-	def start(self):
-		if self.tasks:
-			task = self.tasks.pop()
-			task.start()
-			self.startedTasks.append(task)
-	def sit(self):
-		print('Sitting!')
-		for t in self.startedTasks:
-			t.join()
-		print('Done sitting!')
-
 def autoServicer(url: str) -> Callable:
 	"""Auto detects what to use."""
 	searchStringsPairs = {
@@ -171,8 +154,9 @@ def serNull(url: str) -> None:
 
 
 def serYoutube(url: str, resume: bool = False) -> None:
-	from yt_dl_urls import exist_dash_yt, download_by_threads, FmtInfo
+	from yt_dl_urls import exist_dash_yt
 	qhist.enqueue(url)
+	print('Searching formats..')
 	fmts = exist_dash_yt(url, int(settings['quality']), settings['format'], int(settings['abr']))
 	if not fmts:
 		print('Formats not found, ending.')
@@ -180,7 +164,18 @@ def serYoutube(url: str, resume: bool = False) -> None:
 	if not resume:
 		overwriteFile(settings['TMP'],'1','0')
 		overwriteFile(settings['TMP'],'1aud','0aud')
-	downloader = Thread(
+	downloader = downloadYtFmtsThread(url, fmts)
+	downloader.start()
+	print('Downloading..')
+	sleep(40)
+	print('Playing video..')
+	viewVid(settings['TMP'],'1','1aud')
+	downloader.join()
+	print('Download complete!')
+
+def downloadYtFmtsThread(url: str, fmts: Tuple[str,str]) -> Thread:
+	from yt_dl_urls import download_by_threads, FmtInfo
+	return Thread(
 		target=download_by_threads,
 		args=(
 			url,
@@ -188,10 +183,7 @@ def serYoutube(url: str, resume: bool = False) -> None:
 			FmtInfo(fmts[1], os.path.join(settings['TMP'], '1aud'), float(settings['speed']))
 		)
 	)
-	downloader.start()
-	sleep(40)
-	viewVid(settings['TMP'],'1','1aud')
-	downloader.join()
+
 
 def serStreamlink(url: str,resume: bool = False) -> None:
 	""" Downloads video with aid from streamlink"""
@@ -203,7 +195,7 @@ def serStreamlink(url: str,resume: bool = False) -> None:
 	joiner = streamlinkDownload(stream, os.path.join(settings['TMP'],'1'), resume)
 	if joiner:
 		viewVid(settings['TMP'],'1')
-		joiner.sit()
+		joiner.join()
 
 def matchStreamlinkRes(url: str, res: str):
 	from streamlink import streams
@@ -225,7 +217,7 @@ def streamlinkFmtChooser(streams):
 			return
 	return streams[choice]
 
-def streamlinkDownload(stream, to: str, resume: bool=False) -> BabySitter:
+def streamlinkDownload(stream, to: str, resume: bool=False) -> Thread:
 	"""	Trys to load stream of quality to player"""
 	if resume:
 		print('Resume not supported.')
@@ -233,13 +225,10 @@ def streamlinkDownload(stream, to: str, resume: bool=False) -> BabySitter:
 	else:
 		overwriteFile(settings['TMP'],'1','0')
 		overwriteFile(settings['TMP'],'1aud','0aud')
-	joiner = BabySitter()
-	joiner.addTask(
-		Thread(
-			target=downloadAStream,
-			args=(stream, to, resume),
-			daemon=True
-		)
+	joiner = Thread(
+		target=downloadAStream,
+		args=(stream, to, resume),
+		daemon=True
 	)
 	joiner.start()
 	sleep(15)
