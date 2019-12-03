@@ -58,7 +58,7 @@ def get_audio_fmt(info, abr: int):
 	auds = filter(lambda d: d['vcodec']=='none' and d['acodec']!='none', info['formats'])
 	matches = filter(lambda d: d['abr'] <= abr, auds)
 	codes_n_abr = ((m['format_id'], m['abr']) for m in matches)
-	amatch = max(codes_n_abr, key=lambda x: x[1])
+	amatch = max(codes_n_abr, key=lambda x: x[1], default=None)
 	return amatch[0] if amatch else None
 
 def yt_download_thread(url: str, fmt: str, out: str, speed: float) -> threading.Thread:
