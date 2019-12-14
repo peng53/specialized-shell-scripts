@@ -1,5 +1,4 @@
 # -*- coding: future_fstrings -*-
-
 from sys import argv, exit
 from time import sleep
 from typing import Tuple, List
@@ -7,6 +6,7 @@ import argparse
 import youtube_dl
 import os
 import threading
+import requests
 from datetime import datetime
 from collections import namedtuple
 
@@ -64,7 +64,6 @@ def get_audio_fmt(info, abr: int):
 	amatch = max(codes_n_abr, key=lambda x: x[1], default=None)
 	return amatch[0] if amatch else None
 
-import requests
 
 def tandem_downloads(urls: List, outputs: List, ratelimit: float) -> None:
 	if len(urls)!=len(outputs):
@@ -72,18 +71,12 @@ def tandem_downloads(urls: List, outputs: List, ratelimit: float) -> None:
 	chunkSize = 32*1024 # type: float
 	delay = chunkSize/(ratelimit*1024) # type: float # time in between each 32kb chunk
 	downloads = [ChunkStreamDownloader(u, o, chunkSize) for (u,o) in zip(urls, outputs)]
-	poplist = []
 	while downloads:
-		for i,d in enumerate(downloads):
-			if d.hasdata:
-				d.dlChunk()
-			else:
-				poplist.append(i)
-		for i in reversed(poplist):
-			downloads.pop(i)
-		poplist = []
-		sleep(delay)
-
+		for d in downloads:
+			d.dlChunk()
+		downloads = list(filter(lambda x: x.hasdata==True, downloads))
+		if downloads:
+			sleep(delay)
 
 class ChunkStreamDownloader:
 	def __init__(self, url: str, out: str, chunkSize: float):
