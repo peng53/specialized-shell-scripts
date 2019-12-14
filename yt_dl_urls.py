@@ -1,10 +1,11 @@
 from sys import argv, exit
 from time import sleep
-from typing import Tuple
+from typing import Tuple, List
 import argparse
 import youtube_dl
 import os
 import threading
+from datetime import datetime
 from collections import namedtuple
 
 def yt_info():
@@ -60,6 +61,34 @@ def get_audio_fmt(info, abr: int):
 	codes_n_abr = ((m['format_id'], m['abr']) for m in matches)
 	amatch = max(codes_n_abr, key=lambda x: x[1], default=None)
 	return amatch[0] if amatch else None
+
+import requests
+
+def tandem_downloads(urls: List, outputs: List, ratelimit: float) -> None:
+	if len(urls)!=len(outputs):
+		raise Exception # tbd
+	chunkSize = 32*1024 # type: float
+	delay = chunkSize/(ratelimit*1024) # type: float # time in between each 32kb chunk
+	start = datetime.now()
+
+class ChunkSteamDownloader:
+	def __init__(self, url: str, out: str, chunkSize: float):
+		self.req = requests.get(url, stream=True)
+		self.fout = open(out, 'wb')
+		self.data = self.req.iter_content(chunk_size=chunkSize)
+		self.hasdata = True
+		
+	def __del__(self):
+		self.req.close()
+		self.fout.close()
+	
+	def dlChunk(self):
+		if self.hasdata:
+			try:
+				d = next(self.data)
+				self.fout.write(d)
+			except StopIteration:
+				self.hasdata = False
 
 def yt_download_thread(url: str, fmt: str, out: str, speed: float) -> threading.Thread:
 	return threading.Thread(
