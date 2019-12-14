@@ -52,20 +52,47 @@ def exist_dash_yt(url: str, vheight: int, vfmt: str, abr: int):
 
 def get_video_fmt(info, vheight: int, vfmt: str):
 	''' Return video fmt with vheight and vfmt '''
-	vids = filter(lambda d: d['vcodec']!='none' and d['acodec']=='none' and d['ext']==vfmt, info['formats'])
-	vmatch = next(filter(lambda v: int(v['height'])==vheight, vids), None)
-	return vmatch['format_id'] if vmatch else None
+	return get_video_obj(info, vheight, vfmt)['format_id']
 
 def get_audio_fmt(info, abr: int):
 	''' Returns audio fmt with abr equal or less than desired abr'''
+	return get_audio_obj(info, abr)['format_id']
+
+
+
+def download_dash_yt2(url: str, vheight: int, vfmt: str, abr: int, outdir: str, names: Tuple[str,str], speed: float=45) -> int:
+	urls = exist_dash_yt_urls(url, vheight, vfmt, abr)
+	if not urls:
+		return 1
+	tandem_downloads(urls, [os.path.join(outdir, n) for n in names], speed)
+	return 0
+
+def exist_dash_yt_urls(url: str, vheight: int, vfmt: str, abr: int):
+	info = yt_info().extract_info(url)
+	vidf = get_video_obj(info, vheight, vfmt)
+	if vidf:
+		audf = get_audio_obj(info, abr)
+		if audf:
+			return (vidf['url'],audf['url'])
+	return None
+
+def get_video_obj(info, vheight: int, vfmt: str):
+	''' Return video obj with vheight and vfmt '''
+	vids = filter(lambda d: d['vcodec']!='none' and d['acodec']=='none' and d['ext']==vfmt, info['formats'])
+	vmatch = next(filter(lambda v: int(v['height'])==vheight, vids), None)
+	return vmatch if vmatch else None
+
+def get_audio_obj(info, abr: int):
+	''' Returns audio fmt with abr equal or less than desired abr'''
 	auds = filter(lambda d: d['vcodec']=='none' and d['acodec']!='none', info['formats'])
 	matches = filter(lambda d: d['abr'] <= abr, auds)
-	codes_n_abr = ((m['format_id'], m['abr']) for m in matches)
-	amatch = max(codes_n_abr, key=lambda x: x[1], default=None)
-	return amatch[0] if amatch else None
-
+	amatch = max(matches, key=lambda x: x['abr'], default=None)
+	return amatch
 
 def tandem_downloads(urls: List, outputs: List, ratelimit: float) -> None:
+	# ratelimit is per file
+	# the actual rate should be lower than what is given since sleep time
+	# is not affected by how fast/slow a server responds
 	if len(urls)!=len(outputs):
 		raise Exception # tbd
 	chunkSize = 32*1024 # type: float
@@ -162,7 +189,7 @@ def main(argv):
 				return 2
 		if t.verbose:
 			print('Starting downloads')
-		return download_dash_yt(t.url, t.res, t.fmt, t.abr, t.out, names, t.rate)
+		return download_dash_yt2(t.url, t.res, t.fmt, t.abr, t.out, names, t.rate)
 	return 0
 
 if __name__=='__main__':
