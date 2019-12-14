@@ -1,3 +1,5 @@
+# -*- coding: future_fstrings -*-
+
 from sys import argv, exit
 from time import sleep
 from typing import Tuple, List
@@ -69,19 +71,31 @@ def tandem_downloads(urls: List, outputs: List, ratelimit: float) -> None:
 		raise Exception # tbd
 	chunkSize = 32*1024 # type: float
 	delay = chunkSize/(ratelimit*1024) # type: float # time in between each 32kb chunk
-	start = datetime.now()
+	downloads = [ChunkStreamDownloader(u, o, chunkSize) for (u,o) in zip(urls, outputs)]
+	poplist = []
+	while downloads:
+		for i,d in enumerate(downloads):
+			if d.hasdata:
+				d.dlChunk()
+			else:
+				poplist.append(i)
+		for i in reversed(poplist):
+			downloads.pop(i)
+		poplist = []
+		sleep(delay)
 
-class ChunkSteamDownloader:
+
+class ChunkStreamDownloader:
 	def __init__(self, url: str, out: str, chunkSize: float):
 		self.req = requests.get(url, stream=True)
 		self.fout = open(out, 'wb')
 		self.data = self.req.iter_content(chunk_size=chunkSize)
 		self.hasdata = True
-		
+
 	def __del__(self):
 		self.req.close()
 		self.fout.close()
-	
+
 	def dlChunk(self):
 		if self.hasdata:
 			try:
