@@ -6,6 +6,7 @@ readonly urlQueueHist=${tempDirectory}q_hist
 readonly lastPids=${tempDirectory}last_pids
 readonly playerDefaultArgs='--pause --keep-open --really-quiet'
 readonly youtubeDlDefaultArgs='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
+
 tryResume=0
 
 downloadMedia(){
@@ -33,7 +34,8 @@ downloadStreamlink(){
 	# streamlink /never/ uses aud file
 	overwriteVidBuf ${to}aud ${to}audold
 	echo "Downloading at q = ${vres=240}p"
-	streamlink $url ${vres}p -o ${tempDirectory}1 &
+	#streamlink $url ${vres}p -o ${tempDirectory}1 &
+	streamlink_dl -u $url -f ${vres}p -o ${tempDirectory}1 -r ${speed=64} &
 	echo $! > $lastPids
 	sleep 30
 	return 0

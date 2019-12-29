@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from streamlink import streams
 from argparse import ArgumentParser
 from datetime import datetime
@@ -33,14 +34,20 @@ class MainParser:
 
 	def download(self, args) -> None:
 		t = self.parser.parse_args(args)
+		if os.path.exists(t.out):
+			print("Output file already exists.")
+			return 3
 		try:
 			stream = streams(t.url)
+		except:
+			print("Url doesn't exist.")
+			return 1
+		try:
 			url = stream[t.fmt]
 		except:
 			print("Url or quality doesn't exist.")
-			return 1
-		if os.path.exists(t.out):
-			print("Output file already exists.")
+			print("Possible choices are:")
+			print('\n'.join(q for q in stream))
 			return 2
 		downloadAStream(url, t.out, t.rate)
 		return 0
