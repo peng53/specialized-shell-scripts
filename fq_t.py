@@ -8,7 +8,7 @@ from threading import Thread
 from datetime import datetime
 from argparse import ArgumentParser
 import os
-
+import signal
 
 settings = {
 	"quality": 240,
@@ -17,6 +17,7 @@ settings = {
 	"format": 'webm',
 	'player': 'mpv',
 	'TMP': "/mnt/ramdisk",
+	'cr_session' : ''
 } # type: Dict[str]
 
 for key in settings:
@@ -63,9 +64,12 @@ class FileQueue:
 		open(self.fullpath,'w').close()
 	
 	def print_items(self) -> None:
-		with open(self.fullpath,'r') as f:
-			for l in f:
-				print(l,end='')
+		try:
+			with open(self.fullpath,'r') as f:
+				for l in f:
+					print(l,end='')
+		except:
+			print('Queue is empty (non-existent)')
 
 class PopOnEmptyQueueException(Exception):
 	pass
@@ -192,14 +196,19 @@ def serStreamlink(url: str,resume: bool = False) -> None:
 	stream = matchStreamlinkRes(url,str(settings['quality'])+'p')
 	if not stream:
 		return
+	signal.signal(signal.SIGINT, lambda signum, frame: exit(1))
 	joiner = streamlinkDownload(stream, os.path.join(settings['TMP'],'1'), resume)
 	if joiner:
 		viewVid(settings['TMP'],'1')
 		joiner.join()
 
 def matchStreamlinkRes(url: str, res: str):
-	from streamlink import streams
-	streams = streams(url)
+	if url.find("crunchyroll.com/") >= 0 and settings['cr_session']:
+		from crunchyroll_sl import streams
+		streams = streams(url, session_id=settings['cr_session'])
+	else:
+		from streamlink import streams
+		streams = streams(url)
 	if res in streams:
 		print(f"Resolution={res}")
 		return streams[res]
@@ -219,6 +228,7 @@ def streamlinkFmtChooser(streams):
 
 def streamlinkDownload(stream, to: str, resume: bool=False) -> Thread:
 	"""	Trys to load stream of quality to player"""
+	from streamlink_dl import downloadAStream
 	if resume:
 		print('Resume not supported.')
 		return
@@ -227,7 +237,7 @@ def streamlinkDownload(stream, to: str, resume: bool=False) -> Thread:
 		overwriteFile(settings['TMP'],'1aud','0aud')
 	joiner = Thread(
 		target=downloadAStream,
-		args=(stream, to, resume),
+		args=(stream, to, float(settings['speed'])),
 		daemon=True
 	)
 	joiner.start()
