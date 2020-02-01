@@ -195,12 +195,19 @@ def downloadYtFmtsThread(url: str, fmts: Tuple[str,str]) -> Thread:
 		)
 	)
 
-
 def serStreamlink(url: str,resume: bool = False) -> None:
 	""" Downloads video with aid from streamlink"""
 	print(f'Using streamlink with URL={url}')
 	qhist.enqueue(url)
-	stream = matchStreamlinkRes(url,str(settings['quality'])+'p')
+
+	if url.find("crunchyroll.com/") >= 0 and 'cr_session' in slplugops:
+		from crunchyroll_sl import streams as streams_F
+		streams = lambda url: streams_F(url, session_id=slplugops['cr_session'])
+	else:
+		from streamlink import streams as streams_F
+		streams = lambda url: streams_F(url)
+
+	stream = matchStreamlinkRes(url,str(settings['quality'])+'p', streams)
 	if not stream:
 		return
 	signal.signal(signal.SIGINT, lambda signum, frame: exit(1))
@@ -209,13 +216,8 @@ def serStreamlink(url: str,resume: bool = False) -> None:
 		viewVid(settings['TMP'],'1')
 		joiner.join()
 
-def matchStreamlinkRes(url: str, res: str):
-	if url.find("crunchyroll.com/") >= 0 and 'cr_session' in slplugops:
-		from crunchyroll_sl import streams
-		streams = streams(url, session_id=slplugops['cr_session'])
-	else:
-		from streamlink import streams
-		streams = streams(url)
+def matchStreamlinkRes(url: str, res: str, streams: Callable):
+	streams = streams(url)
 	if res in streams:
 		print(f"Resolution={res}")
 		return streams[res]
