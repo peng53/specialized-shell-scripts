@@ -99,11 +99,15 @@ def tandem_downloads(urls: List, outputs: List, ratelimit: float) -> None:
 	delay = chunkSize/(ratelimit*1024) # type: float # time in between each 32kb chunk
 	downloads = [ChunkStreamDownloader(u, o, chunkSize) for (u,o) in zip(urls, outputs)]
 	while downloads:
-		for d in downloads:
-			d.dlChunk()
-		downloads = list(filter(lambda x: x.hasdata==True, downloads))
-		if downloads:
-			sleep(delay)
+		try:
+			for d in downloads:
+				d.dlChunk()
+			downloads = list(filter(lambda x: x.hasdata==True, downloads))
+			if downloads:
+				sleep(delay)
+		except OSError: # except youtube_dl.utils.DownloadError:
+			print(f'No space left on device. Ending downloads..')
+			return
 
 class ChunkStreamDownloader:
 	def __init__(self, url: str, out: str, chunkSize: float):
