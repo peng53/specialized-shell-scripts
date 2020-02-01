@@ -6,7 +6,7 @@ from time import sleep
 import sys
 import os
 
-def downloadAStream(stream, to: str, speed: float) -> None:
+def downloadAStream(stream, to: str, speed: float, delayFail=True) -> None:
 	print('Using 32kb chunk download variant')
 	chunkSize = 1024*32 # type: int # 32kb chunks
 	desiredRate = speed # type: float
@@ -16,13 +16,22 @@ def downloadAStream(stream, to: str, speed: float) -> None:
 		with stream.open() as s, open(to, 'ab') as t:
 			d = s.read(chunkSize)
 			while d:
-				t.write(d)
+				try:
+					t.write(d)
+				except OSError:
+					if delayFail:
+						print('No space! Waiting 10s!')
+						sleep(10)
+						t.write(d)
+					else:
+						raise Exception
 				sleep(delay)
 				d = s.read(chunkSize)
 	finally:
 		end = datetime.now()
 		size = os.path.getsize(to)/1024 # type: int # size in kb
 		downloadTime = (end-start).seconds # type: int
+		print(f'Download of {size} took {downloadTime} seconds: {size/downloadTime:.3}kb/s')
 
 class MainParser:
 	def __init__(self):
