@@ -17,12 +17,19 @@ settings = {
 	"format": 'webm',
 	'player': 'mpv',
 	'TMP': "/mnt/ramdisk",
-	'cr_session' : ''
 } # type: Dict[str]
 
 for key in settings:
 	if key in os.environ:
 		settings[key] = os.environ[key]
+
+if 'slplugops' in os.environ:
+	# transforms 'x:1:a:2,t:4' to
+	# x:1, a:2, t:4
+	slplugops = os.environ['slplugops'].split(':')
+	slplugops = {slplugops[i]:slplugops[i+1] for i in range(0,len(slplugops),2)}
+else:
+	slplugops = {}
 
 player_args = ["--really-quiet", "--pause", "--keep-open"] # type: List[str]
 q_name = "mq" # type: str
@@ -203,9 +210,9 @@ def serStreamlink(url: str,resume: bool = False) -> None:
 		joiner.join()
 
 def matchStreamlinkRes(url: str, res: str):
-	if url.find("crunchyroll.com/") >= 0 and settings['cr_session']:
+	if url.find("crunchyroll.com/") >= 0 and 'cr_session' in slplugops:
 		from crunchyroll_sl import streams
-		streams = streams(url, session_id=settings['cr_session'])
+		streams = streams(url, session_id=slplugops['cr_session'])
 	else:
 		from streamlink import streams
 		streams = streams(url)
@@ -243,25 +250,6 @@ def streamlinkDownload(stream, to: str, resume: bool=False) -> Thread:
 	joiner.start()
 	sleep(15)
 	return joiner
-
-def downloadAStream(stream, to: str, resume: bool) -> None:
-	print('Using 32kb chunk download variant')
-	chunkSize = 1024*32 # type: int # 32kb chunks
-	desiredRate = float(settings['speed']) # type: float
-	delay = 32/desiredRate # type: float # time in between each 32kb chunk
-	start = datetime.now()
-	try:
-		with stream.open() as s, open(to, 'ab') as t:
-			d = s.read(chunkSize)
-			while d:
-				t.write(d)
-				sleep(delay)
-				d = s.read(chunkSize)
-	finally:
-		end = datetime.now()
-		size = os.path.getsize(to)/1024 # type: int # size in kb
-		downloadTime = (end-start).seconds # type: int
-		print(f'Download of {size} took {downloadTime} seconds: {size/downloadTime:.3}kb/s')
 
 class MainParser:
 	def __init__(self):
