@@ -12,9 +12,11 @@ def downloadAStream(stream, to: str, speed: float, delayFail=True) -> None:
 	desiredRate = speed # type: float
 	delay = 32/desiredRate # type: float # time in between each 32kb chunk
 	start = datetime.now()
+	progI = True
 	try:
 		with stream.open() as s, open(to, 'ab') as t:
 			d = s.read(chunkSize)
+			print('/\r', end='')
 			while d:
 				try:
 					t.write(d)
@@ -26,6 +28,8 @@ def downloadAStream(stream, to: str, speed: float, delayFail=True) -> None:
 					else:
 						raise Exception
 				sleep(delay)
+				print('\\\r' if progI else '/\r', end='')
+				progI = not progI
 				d = s.read(chunkSize)
 	finally:
 		end = datetime.now()
