@@ -1,4 +1,4 @@
-# -*- coding: future_fstrings -*-
+
 from sys import argv, exit
 from time import sleep
 from typing import Tuple, List
@@ -84,7 +84,7 @@ def get_video_obj(info, vheight: int, vfmt: str):
 
 def get_audio_obj(info, abr: int):
 	''' Returns audio fmt with abr equal or less than desired abr'''
-	auds = filter(lambda d: d['vcodec']=='none' and d['acodec']!='none', info['formats'])
+	auds = filter(lambda d: d['vcodec']=='none' and d['acodec']!='none' and 'abr' in d, info['formats'])
 	matches = filter(lambda d: d['abr'] <= abr, auds)
 	amatch = max(matches, key=lambda x: x['abr'], default=None)
 	return amatch
