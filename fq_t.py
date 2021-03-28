@@ -1,3 +1,4 @@
+# -*- coding: future_fstrings -*-
 #!/usr/bin/env python3
 from sys import argv as ARGV
 from typing import Dict, Callable, List, Tuple
@@ -7,6 +8,7 @@ from time import sleep
 from threading import Thread
 from datetime import datetime
 from argparse import ArgumentParser
+from typing import List
 import os
 import signal
 
@@ -14,7 +16,7 @@ settings = {
 	"quality": 240,
 	"abr": 80,
 	"speed": 56,
-	"format": 'webm',
+	"format": ['webm'],
 	'player': 'mpv',
 	'TMP': "/mnt/ramdisk",
 } # type: Dict[str]
@@ -42,7 +44,7 @@ class FileQueue:
 	def front(self) -> str:
 		with open(self.fullpath,'r') as f:
 			return f.readline()
-	
+
 	def dequeue(self) -> str:
 		tmp_f = mktemp(dir=settings['TMP']) # type: str
 		os.rename(self.fullpath, tmp_f)
@@ -60,16 +62,16 @@ class FileQueue:
 			r = r.rstrip()
 			return r
 		raise PopOnEmptyQueueException
-	
+
 	def enqueue(self, line: str) -> None:
 		l = line.rstrip()
 		if l:
 			with open(self.fullpath, 'a') as f:
 				f.write(l+'\n')
-	
+
 	def clear(self) -> None:
 		open(self.fullpath,'w').close()
-	
+
 	def print_items(self) -> None:
 		try:
 			with open(self.fullpath,'r') as f:
@@ -153,6 +155,7 @@ def autoServicer(url: str) -> Callable:
 	searchStringsPairs = {
 		"youtube.com/" : serYoutube,
 		"crunchyroll.com/" : serStreamlink,
+		"funimation.com/" : serStreamlink,
 	}
 	for s in searchStringsPairs:
 		if url.find(s)>=0:
@@ -203,6 +206,11 @@ def serStreamlink(url: str,resume: bool = False) -> None:
 	if url.find("crunchyroll.com/") >= 0 and 'cr_session' in slplugops:
 		from crunchyroll_sl import streams as streams_F
 		streams = lambda url: streams_F(url, session_id=slplugops['cr_session'])
+	elif url.find("funimation.com/") >= 0 and 'fu_session' in slplugops\
+	and 'fu_login' in slplugops:
+		from funimation_sl import streams as streams_F
+		email,pword = slplugops['fu_login'].split('=',1)
+		streams = lambda url: streams_F(url, cookie=slplugops['fu_session'], email=email, pword=pword)
 	else:
 		from streamlink import streams as streams_F
 		streams = lambda url: streams_F(url)
