@@ -1,4 +1,3 @@
-# -*- coding: future_fstrings -*-
 #!/usr/bin/env python3
 from sys import argv as ARGV
 from typing import Dict, Callable, List, Tuple
@@ -19,6 +18,8 @@ settings = {
 	"format": ['webm'],
 	'player': 'mpv',
 	'TMP': "/mnt/ramdisk",
+	'player_args' : '--really-quiet --pause --keep-open',
+	'player_aud' : '--audio-file="{}"'
 } # type: Dict[str]
 
 for key in settings:
@@ -33,7 +34,6 @@ if 'slplugops' in os.environ:
 else:
 	slplugops = {}
 
-player_args = ["--really-quiet", "--pause", "--keep-open"] # type: List[str]
 q_name = "mq" # type: str
 q_hist_name = "q_hist" # type: str
 
@@ -88,10 +88,13 @@ def viewVid(v_dir: str,v_name: str, a_name: str = None) -> None:
 	"""	Views download media files using global var player and
 		player args. Takes a_name optionally as audio track."""
 	vid = os.path.join(v_dir,v_name)
+	player_args = settings['player_args'].split(' ')
 	if os.path.exists(vid):
 		cmd = [settings['player'],vid]+player_args
 		if a_name:
-			cmd.append('--audio-file='+os.path.join(v_dir,a_name))
+			a_file = os.path.join(v_dir,a_name)
+			if (os.path.exists(a_file)):
+				cmd.append(settings['player_aud'].format(a_file))
 		Popen(cmd)
 	else:
 		print("No video file exists.")
