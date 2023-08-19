@@ -1,0 +1,285 @@
+#!/bin/sh
+# fq10
+readonly tempDirectory=/mnt/ramdisk/
+readonly urlQueue=${tempDirectory}mq
+readonly urlQueueHist=${tempDirectory}q_hist
+readonly lastPids=${tempDirectory}last_pids
+readonly playerDefaultArgs='--pause --keep-open --really-quiet'
+readonly youtubeDlDefaultArgs='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
+
+tryResume=0
+
+downloadMedia(){
+	local url=$1
+	echo 'Downloading' $url
+	[ $tryResume -eq 1 ] && echo 'Resuming from previous.'
+	case "$url" in
+		*.youtube.com/watch?v=*)
+			downloadYoutube $url
+		;;
+		*.crunchyroll.com/*)
+			downloadStreamlink $url
+		;;
+		*)
+			echo 'No url matches'
+			return 1
+		;;
+	esac
+	return $?
+}
+
+downloadStreamlink(){
+	local url=$1 to=${tempDirectory}1
+	[ $tryResume -eq 0 ] && overwriteVidBuf $to ${to}old
+	# streamlink /never/ uses aud file
+	overwriteVidBuf ${to}aud ${to}audold
+	echo "Downloading at q = ${vres=240}p"
+	#streamlink $url ${vres}p -o ${tempDirectory}1 &
+	streamlink_dl -u $url -f ${vres}p -o ${tempDirectory}1 -r ${speed=64} &
+	echo $! > $lastPids
+	sleep 30
+	return 0
+}
+
+
+
+downloadYoutube(){
+	local url=$1
+	[ "$tryResume" -eq 0 ] && yt-dlp -F $url > ${tempDirectory}formats
+	getYoutubeFmts ${tempDirectory}formats
+	if [ $? -eq 0 ]
+	then
+		clearPids
+		downloadYoutubeFmt $url $vfmt ${tempDirectory}1
+		sleep 10
+		downloadYoutubeFmt $url $afmt ${tempDirectory}1aud
+		sleep 20
+		return 0
+	else
+		return 1
+	fi
+}
+getYoutubeFmts(){
+	local lines=$1
+	vfmt=$(findVideoFmtCode ${ext='webm'} ${vres=240} $lines)
+	if [ "$vfmt" -eq 0 ]
+	then
+		echo 'Video not available in resolution.'
+		return 1
+	fi
+	afmt=$(findAudioFmtCode ${abr=80} $lines)
+	if [ -z "$afmt" ]
+	then
+		echo 'Audio not available in bitrate.'
+		return 1
+	fi
+	return 0
+}
+findAudioFmtCode(){
+	local best=0 desired=$1 lines=$2 code=0 line
+	while IFS= read -r line
+	do
+		# Check if line is a DASH source and parse for bitrate
+		#local abr=$(echo $line | egrep 'audio only tiny\s+[0-9]+k' -o | egrep '[0-9]+' -o)
+		#if [ -n "$abr" ] && [ "$abr" -le "$desired" ] && [ $abr -gt $best ]
+		#then
+		#	best=$abr
+		#	code=$(echo $line | cut -f 1 -d ' ')
+		#fi
+		echo $line | egrep 'audio only' -o >/dev/null
+		[ $? -ne 0 ] && continue
+		local abr=$(echo $line | egrep '[0-9]+k' -o | head -n 1)
+		abr=${abr%?}
+		if [ -n "$abr" ] && [ "$abr" -le "$desired" ] && [ $abr -gt $best ]
+		then
+			best=$abr
+			code=$(echo $line | cut -f 1 -d ' ')
+		fi
+	done < $lines
+	echo $code
+}
+findVideoFmtCode(){
+	local bestRes=0 bestFmt=0 desiredCodec=$1 desiredVRes=$2 lines=$3 line
+	while IFS= read -r line
+	do
+		echo $line | egrep $desiredCodec'\s+[0-9]' -o > /dev/null
+		[ $? -ne 0 ] && continue
+		# Check if line has vertical resolution
+		#local res=$(echo $line | egrep '[0-9]+x[0-9]+\s+[0-9]+p' -o | tr -s ' ' | cut -d ' ' -f 2)
+		local res=$(echo $line | egrep '[0-9]+x[0-9]+' -o | tr -s ' ' | cut -d 'x' -f 2)
+		[ -z "$res" ] && continue
+		# Extract vertical resolution
+		res=$(echo $res | egrep '[0-9]+' -o)
+		if [ "$res" -le "$desiredVRes" ] && [ "$res" -gt "$bestRes" ]
+		then
+			bestRes=$res
+			bestFmt=$(echo $line | cut -f 1 -d ' ')
+		fi
+	done < $lines
+	echo $bestFmt
+}
+downloadYoutubeFmt(){
+	local url=$1 fmt=$2 to=$3
+	[ $tryResume -eq 0 ] && overwriteVidBuf $to ${to}old
+	echo "Download started for fmt |$fmt|"
+	echo $fmt
+	yt-dlp --verbose -q $youtubeDlDefaultArgs -r ${speed=32K} -f $fmt $url -o $to &
+	echo $! >> $lastPids
+}
+overwriteVidBuf(){
+	# Overwrites filename 2nd arg at ${tempDirectory} with 1st arg
+	[ -f $1 ] && mv -f $1 $2
+}
+
+addQueueUrl(){
+	[ -n "$1" ] && echo $1 >> $urlQueue
+}
+
+getQueueUrl(){
+	local url
+	read -r url < $urlQueue
+	echo $url
+}
+popQueueUrl(){
+	sed -i '1d;/^$/d' $urlQueue
+}
+
+viewMedia(){
+	if [ -s ${tempDirectory}1 ]
+	then
+		local dash
+		[ -s ${tempDirectory}1aud ] && dash=--audio-file=${tempDirectory}1aud
+		echo Viewing media
+		mpv $playerDefaultArgs ${tempDirectory}1 $dash &
+	fi
+}
+
+
+handleHist(){
+	case "$1" in
+		see|'')
+			cat $urlQueueHist
+		;;
+		add)
+			addQueueUrl $(getHistUrl)
+		;;
+		resume)
+			url=$(getHistUrl)
+			if [ -n "$url" ]
+			then
+				echo 'Resuming from history.'
+				tryResume=1
+				tryDl='true'
+			fi
+		;;
+	esac
+}
+getHistUrl(){
+	[ -s $urlQueueHist ] && echo $(tail -n 1 $urlQueueHist)
+}
+
+
+addToHist(){
+	[ -z "$1" ] && return
+	local last
+	[ -s $urlQueueHist ] && last=$(getHistUrl)
+	[ "$last" != "$1" ] && echo $1 >> $urlQueueHist
+}
+
+haltLastPid(){
+	local pid
+	while IFS= read -r pid
+	do
+		if [ -d /proc/$pid ]
+		then
+			kill $pid
+			echo "Killed PID #${pid}"
+		fi
+	done < $lastPids
+	> $lastPids
+}
+clearPids(){
+	> $lastPids
+}
+
+checkPids(){
+	[ ! -f $lastPids ] && return 0
+	local pid
+	while IFS= read -r pid
+	do
+		if [ -d /proc/$pid ]
+		then
+			echo Process from last call still open! $pid
+			return 1
+		fi
+	done < $lastPids
+	return 0
+}
+
+tryDl='false'
+case "$1" in
+	'')
+		url=$(getQueueUrl)
+		if [ -n "$url" ]
+		then
+			popQueueUrl
+			tryDl='true'
+		fi
+	;;
+	resume)
+		tryResume=1
+		if [ $# -gt 1 ]
+		then
+			url=$2
+		else
+			url=$(getQueueUrl)
+			[ -n "$url" ] && popQueueUrl
+		fi
+		[ -n "$url" ] && tryDl='true'
+	;;
+	add)
+		addQueueUrl $2
+	;;
+	get)
+		url=$(getQueueUrl)
+		[ -n "$url" ] && popQueueUrl && echo $url
+	;;
+	top)
+		url=$(getQueueUrl)
+		[ -n "$url" ] && echo $url
+	;;
+	flush)
+		> $urlQueue
+		echo 'Queue flushed.'
+	;;
+	purge)
+		rm -v -i $urlQueue ${tempDirectory}1 ${tempDirectory}1aud ${tempDirectory}1old ${tempDirectory}1audold ${tempDirectory}formats ${tempDirectory}q_hist ${tempDirectory}last_pids
+	;;
+	see)
+		cat $urlQueue
+	;;
+	view)
+		viewMedia
+	;;
+	hist)
+		handleHist $2
+	;;
+	halt)
+		haltLastPid
+	;;
+	*)
+		url=$1
+		tryDl='true'
+	;;
+esac
+
+if [ "$tryDl" = 'true' ] && [ -n "$url" ]
+then
+	checkPids
+	if [ $? -eq 0 ]
+	then
+		[ "$(getHistUrl)" = "$url" ] && tryResume=1
+		addToHist $url
+		downloadMedia $url && viewMedia
+	fi
+fi
