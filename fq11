@@ -1,11 +1,17 @@
 #!/bin/sh
-# fq10
+# fq11
 readonly tempDirectory=/mnt/ramdisk/
 readonly urlQueue=${tempDirectory}mq
 readonly urlQueueHist=${tempDirectory}q_hist
 readonly lastPids=${tempDirectory}last_pids
 readonly playerDefaultArgs='--pause --keep-open --really-quiet'
 readonly youtubeDlDefaultArgs='--no-part --youtube-skip-dash-manifest --no-call-home --no-playlist'
+
+readonly yt_dlp="~/bin/yt-dlp"
+readonly vres=${vres:-240}
+readonly vext=${vext:-webm}
+readonly abr=${abr:-50}
+readonly speed=${speed:-60}
 
 tryResume=0
 
@@ -45,19 +51,25 @@ downloadStreamlink(){
 
 downloadYoutube(){
 	local url=$1
-	[ "$tryResume" -eq 0 ] && yt-dlp -F $url > ${tempDirectory}formats
-	getYoutubeFmts ${tempDirectory}formats
-	if [ $? -eq 0 ]
-	then
-		clearPids
-		downloadYoutubeFmt $url $vfmt ${tempDirectory}1
-		sleep 10
-		downloadYoutubeFmt $url $afmt ${tempDirectory}1aud
-		sleep 20
-		return 0
-	else
-		return 1
-	fi
+	#[ "$tryResume" -eq 0 ] && yt-dlp -F $url > ${tempDirectory}formats
+	#getYoutubeFmts ${tempDirectory}formats
+	#if [ $? -eq 0 ]
+	#then
+	#	clearPids
+	#	downloadYoutubeFmt $url $vfmt ${tempDirectory}1
+	#	sleep 10
+	#	downloadYoutubeFmt $url $afmt ${tempDirectory}1aud
+	#	sleep 20
+	#	return 0
+	#else
+	#	return 1
+	#fi
+	local out="$tempDirectory/1"
+	echo "Downloading video at ${vres}p $vext format with ${abr}k audio"
+	[ $tryResume -eq 0 ] && overwriteVidBuf $out ${out}old
+	eval "$yt_dlp -S "res:$vres,vext:$vext,abr:$abr,size" --no-playlist -r $speed'k' -o $out -c --no-part $url" -v &
+	sleep 30
+	return 0
 }
 getYoutubeFmts(){
 	local lines=$1
