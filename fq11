@@ -67,7 +67,7 @@ downloadYoutube(){
 	local out="$tempDirectory/1"
 	echo "Downloading video at ${vres}p $vext format with ${abr}k audio"
 	[ $tryResume -eq 0 ] && overwriteVidBuf $out ${out}old
-	eval "$yt_dlp -S "res:$vres,vext:$vext,abr:$abr,size" --no-playlist -r $speed'k' -o $out -c --no-part $url" -v &
+	eval "$yt_dlp -S "res:$vres,vext:$vext,abr:$abr,size" --no-playlist -r $speed'k' -o $out -c --no-part $url" -v --downloader ffmpeg &
 	sleep 30
 	return 0
 }
