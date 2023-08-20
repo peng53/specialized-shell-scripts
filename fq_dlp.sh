@@ -17,7 +17,8 @@ readonly speed=${speed:-48}
 
 downloadYoutube(){
 	local url=$1
-	local out=$tempDictory/yt-vid
+	local out="$tempDirectory/yt-vid"
+	overwriteVidBuf $out ${out}old
 	echo "Downloading video at ${vres}p $vext format with ${abr}k audio"
 	eval "$yt_dlp -S "res:$vres,vext:$vext,abr:$abr,size" --no-playlist -r $speed'k' -o $out -c --no-part $url" &
 }
@@ -27,6 +28,10 @@ viewMedia(){
 		echo Viewing media
 		mpv $playerDefaultArgs ${tempDirectory}/yt-vid &
 	fi
+}
+overwriteVidBuf(){
+	# Overwrites filename 2nd arg at ${tempDirectory} with 1st arg
+	[ -f $1 ] && mv -f $1 $2
 }
 
 case "$1" in
@@ -39,7 +44,7 @@ case "$1" in
 	*)
 		echo "Downloading: $1"
 		downloadYoutube $1
-		sleep 5
+		sleep 30
 		viewMedia
 	;;
 esac
