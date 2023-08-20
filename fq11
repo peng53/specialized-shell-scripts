@@ -51,24 +51,21 @@ downloadStreamlink(){
 
 downloadYoutube(){
 	local url=$1
-	#[ "$tryResume" -eq 0 ] && yt-dlp -F $url > ${tempDirectory}formats
-	#getYoutubeFmts ${tempDirectory}formats
-	#if [ $? -eq 0 ]
-	#then
-	#	clearPids
-	#	downloadYoutubeFmt $url $vfmt ${tempDirectory}1
-	#	sleep 10
-	#	downloadYoutubeFmt $url $afmt ${tempDirectory}1aud
-	#	sleep 20
-	#	return 0
-	#else
-	#	return 1
-	#fi
 	local out="$tempDirectory/1"
 	echo "Downloading video at ${vres}p $vext format with ${abr}k audio"
 	[ $tryResume -eq 0 ] && overwriteVidBuf $out ${out}old
-	eval "$yt_dlp -S "res:$vres,vext:$vext,abr:$abr,size" --no-playlist -r $speed'k' -o $out -c --no-part $url" -v --downloader ffmpeg &
-	sleep 30
+	#eval "$yt_dlp -S "res:$vres,vext:$vext,abr:$abr,size" --no-playlist -r $speed'k' -o $out -c --no-part $url -v --downloader ffmpeg &"
+	clearPids
+	eval "$yt_dlp --no-playlist -r $speed'k' -o $out -c --no-part -f 'bv[ext=$vext][height<=$vres]' $url --fixup never" &
+	echo $! >> $lastPids
+	sleep 10
+	[ $tryResume -eq 0 ] && overwriteVidBuf ${out}aud ${out}audold
+	#echo ${out}aud
+	#echo ${out}audold
+	#mv ${out}aud ${out}audold
+	eval "$yt_dlp --no-playlist -r $speed'k' --fixup never -o $out'aud' -c --no-part -f 'ba[abr<=$abr]' $url" &
+	echo $! >> $lastPids
+	sleep 10
 	return 0
 }
 getYoutubeFmts(){
